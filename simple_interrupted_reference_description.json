@@ -1,0 +1,57 @@
+{
+  "closure_type": "simple_interrupted",
+  "number_of_sutures": 3,
+  "edge_relationship": {
+    "coaptation": "Edges are approximated. A fine linear depression indicating the incision path is visible between the epidermal surfaces.",
+    "eversion": "Present. The tissue along the wound margin is raised and puckered, indicating eversion of the skin edges.",
+    "tissue_perfusion": {
+      "blanching": "absent",
+      "description": "The simulated tissue displays a uniform, homogenous color across the entire visible surface, with no evidence of blanching adjacent to the sutures."
+    }
+  },
+  "stitch_geometry": {
+    "overall_pattern": "Uniform, creating a parallel, ladder-like appearance.",
+    "suture_angle_to_incision": "The visible suture limbs are oriented largely perpendicular to the incision line. The middle suture exhibits a minor angular deviation.",
+    "bite_symmetry": "The distance from the incision edge to the suture entry/exit points appears visually equal on both sides for all three sutures.",
+    "bite_width_from_edge": "Consistent across all entry and exit points, visually estimated to be within the 3-5 mm range.",
+    "inter_suture_spacing": "The distance between each consecutive suture is regular and visually uniform.",
+    "loop_profile": "Suture loops form shallow arcs that elevate the tissue, creating slight tenting, rather than lying completely flat against the skin surface."
+  },
+  "knot_characteristics": {
+    "summary": "All knots are multi-throw surgical knots, placed consistently on the left side of the incision line, and lie flat. Tail management is irregular.",
+    "individual_sutures": [
+      {
+        "suture_index": 1,
+        "position": "top",
+        "knot_placement": "Offset, located on the left side of the incision line.",
+        "knot_profile": "Lies flat against the tissue surface.",
+        "tail_length_mm": "Variable, estimated between 3-5 mm.",
+        "tail_orientation": "Splayed at an oblique angle to the incision."
+      },
+      {
+        "suture_index": 2,
+        "position": "middle",
+        "knot_placement": "Offset, located on the left side of the incision line.",
+        "knot_profile": "Lies flat against the tissue surface.",
+        "tail_length_mm": "Asymmetrical and irregular; one tail is <2 mm, the other is ~4 mm.",
+        "tail_orientation": "Splayed at an oblique angle to the incision."
+      },
+      {
+        "suture_index": 3,
+        "position": "bottom",
+        "knot_placement": "Offset, located on the left side of the incision line.",
+        "knot_profile": "Lies flat against the tissue surface.",
+        "tail_length_mm": "Variable, estimated between 3-5 mm.",
+        "tail_orientation": "Splayed at an oblique angle to the incision."
+      }
+    ]
+  },
+  "global_impression": {
+    "overall_appearance": "The closure is uniform in spacing and demonstrates consistent eversion, but shows imprecision in knot tail length and orientation.",
+    "tissue_distortion": "Puckering is present along the incision line, consistent with the degree of eversion achieved. No dog-ears are observed.",
+    "suture_independence": {
+      "is_technique_interrupted": true,
+      "verification_method": "Visual inspection of suture type; physical confirmation is not possible from a static image."
+    }
+  }
+}

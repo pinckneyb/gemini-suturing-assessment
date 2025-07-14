@@ -1,0 +1,37 @@
+napshot: what a running subcuticular (intradermal) closure should look like when you’re done
+A good subcuticular places every bite in the papillary dermis, hides the thread completely beneath the epidermis, and leaves nothing but two short tails at the extreme ends of the wound. No external “rail-road tracks,” no dangling knots—just a hair-thin line where the skin edges meet.
+
+Edge relationship
+Glass-smooth coaptation. Epidermal edges sit flush—no gaps, no step-offs, no overlapping. When you back-light the wound, you shouldn’t see daylight between the cut surfaces. 
+Medscape
+
+Minimal, even eversion. Because the bites are shallow and symmetric, the closure produces a low ridge that will flatten as edema resolves; there’s never a sunken valley. 
+Closing the Gap
+
+Full perfusion. Tissue retains normal pink tone; blanching means you cinched the line too tight and need to back off.
+
+Stitch geometry
+Parameter		Target value					How it looks
+Bite depth & width	1–2 mm from the cut edge, through mid-dermis	Each arc stays just under the skin; you see a faint, continuous “shadow” rather than individual loops.
+Step length		2–3 mm advance per pass				Subtle, regular “zig-zag” under the surface; no bulges or hollows.
+Angle			Horizontal through dermis			The suture runs parallel to the skin surface; no vertical limbs cross the epidermis.
+
+Because every throw alternates sides at exactly the same depth, the finished line looks like a single filament snaking just beneath clear adhesive tape. 
+
+Knot handling
+Buried anchors. The start knot is buried deep (often a buried dermal knot or an anchor stitch); the finish is typically an Aberdeen termination or buried surgeon’s knot—both trimmed flush so nothing protrudes. 
+
+Tails 1–2 mm. Absorbable material (eg Monocryl 4-0) needs only a whisker of tail to avoid wicking; non-absorbable nylon may be brought out the far end and taped flat for later removal.
+
+Even tension. After tying, you should still be able to pinch a millimetre of laxity in the line—overtightening leads to “railroad embankments” once swelling hits.
+
+Global impression
+Cosmetic “zipper-seal.” From arm’s length the closure is barely visible—a hairline scar with a slight pink hue and no suture marks. The hallmark is no external cross-hatches whatsoever. 
+
+Uniform contour. Run your fingertip along the incision: you feel a flat or gently convex ridge with no dog-ears or puckers at either end.
+
+Independent integrity. Tug lightly on one tail and nothing gapes—the intradermal run distributes tension along the entire length; cutting one loop does not unzip the closure unless you sever a long segment.
+
+Ready for dress-and-go. Because there’s no external filament, patients can shower early, and follow-up involves either removing a taped nylon tail or letting an absorbable line dissolve on its own.
+
+That’s the benchmark appearance surgeons use when grading a running subcuticular: flush edges, invisible suture course, lateral buried knots, preserved perfusion—and a closure so tidy the casual observer can’t tell it was ever open.

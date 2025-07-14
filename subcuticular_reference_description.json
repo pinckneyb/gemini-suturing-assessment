@@ -1,0 +1,62 @@
+{
+  "assessmentTarget": "Running Subcuticular Suture Closure",
+  "evaluatedSection": {
+    "description": "The leftmost of three vertical incisions on a synthetic suture practice pad, as highlighted by a red oval.",
+    "edgeRelationship": {
+      "coaptation": {
+        "status": "Poor",
+        "findings": "Epidermal edges are not flush. Significant puckering, overlapping, and bunching are present along the entire visible length of the closure, creating an uneven surface with both gaps and raised sections."
+      },
+      "eversion": {
+        "status": "Irregular and Excessive",
+        "findings": "The closure does not exhibit a minimal, even ridge. Instead, it presents as a series of pronounced, irregular puckers and depressions, indicating inconsistent and excessive tissue eversion and inversion."
+      },
+      "perfusion": {
+        "status": "Not Assessable",
+        "findings": "The subject is a synthetic suture practice pad; tissue perfusion, color, and blanching cannot be evaluated."
+      }
+    },
+    "stitchGeometry": {
+      "bitePlacement": {
+        "status": "Indeterminate",
+        "findings": "Direct measurement of bite depth and width is not possible from the external view. However, the significant tissue distortion suggests bites may be of inconsistent depth, width, or both."
+      },
+      "stepLength": {
+        "status": "Irregular",
+        "findings": "The non-uniform bunching of tissue indicates inconsistent advance per pass (step length), contributing to the puckered appearance rather than a smooth closure."
+      },
+      "suturePath": {
+        "status": "Not Visible",
+        "findings": "The internal horizontal path of the suture is not visible. No suture material crosses the epidermis externally, which is consistent with the subcuticular technique."
+      }
+    },
+    "knotHandling": {
+      "status": "Not Assessable",
+      "findings": "The start and end knots, as well as the suture tails, are not visible within the highlighted area."
+    },
+    "tension": {
+      "level": {
+        "status": "Excessive",
+        "findings": "The suture line is visibly overtightened, resulting in significant compression and bunching of the tissue."
+      },
+      "uniformity": {
+        "status": "Non-uniform",
+        "findings": "Tension appears to be unevenly distributed along the closure, causing localized areas of pronounced puckering."
+      }
+    },
+    "globalImpression": {
+      "cosmesis": {
+        "status": "Poor",
+        "findings": "The closure is not a fine line but a prominent, rumpled ridge. No external cross-hatch marks are present."
+      },
+      "contour": {
+        "status": "Non-uniform",
+        "findings": "The surface contour is highly irregular and bumpy, not a flat or gently convex ridge."
+      },
+      "integrity": {
+        "status": "Not Assessable",
+        "findings": "The closure's mechanical integrity under load cannot be determined from a static image."
+      }
+    }
+  }
+}
