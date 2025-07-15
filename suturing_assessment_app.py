@@ -137,8 +137,8 @@ class SuturingAssessmentGUI:
         import cv2
         base, ext = os.path.splitext(video_path)
         processed_path = base + '_processed.mp4'
-        # Only process if over 250MB
-        if os.path.getsize(video_path) <= 250 * 1024 * 1024:
+        # Only process if over 200MB
+        if os.path.getsize(video_path) <= 200 * 1024 * 1024:
             return video_path
         # Show status in GUI
         self.status_var.set("Processing video for Gemini API size limits...")
@@ -326,9 +326,9 @@ class SuturingAssessmentGUI:
         try:
             assert self.assessor is not None
             suture_type = self.suture_type.get()
-            # Only preprocess if over 250MB
+            # Only preprocess if over 200MB
             video_path = self.video_path.get()
-            if os.path.getsize(video_path) > 250 * 1024 * 1024:
+            if os.path.getsize(video_path) > 200 * 1024 * 1024:
                 self.status_var.set("Processing video for Gemini API size limits...")
                 self.root.update_idletasks()
                 video_path = self.preprocess_video(video_path)
@@ -338,7 +338,8 @@ class SuturingAssessmentGUI:
             result = self.assessor.assess_video(self.final_frame_path, None, suture_type, video_path)
             self.root.after(0, lambda: self._display_assessment_result(result))
         except Exception as e:
-            self.root.after(0, lambda: self._show_error(f"Assessment failed: {str(e)}"))
+            error_msg = str(e)
+            self.root.after(0, lambda: self._show_error(f"Assessment failed: {error_msg}"))
 
     def _display_assessment_result(self, result):
         """Display suturing assessment results with improved formatting."""
@@ -402,11 +403,11 @@ class SuturingAssessmentGUI:
         suture_type = self.suture_type.get()
         ref_image_path = None
         if suture_type == "simple_interrupted":
-            ref_image_path = "simple_interrupted_final_product.png"
+            ref_image_path = "simple_interrupted_example.png"
         elif suture_type == "vertical_mattress":
-            ref_image_path = "vertical_mattress_final_product.png"
+            ref_image_path = "vertical_mattress_example.png"
         elif suture_type == "subcuticular":
-            ref_image_path = "subcuticular_final_product.png"
+            ref_image_path = "subcuticular_example.png"
         
         # Load and display reference image
         if ref_image_path and os.path.exists(ref_image_path):
@@ -632,11 +633,11 @@ class SuturingAssessmentGUI:
         c.drawCentredString(width // 2, y, "Reference Image:")
         y -= 20
         if suture_type == "simple_interrupted":
-            ref_image_path = "simple_interrupted_final_product.png"
+            ref_image_path = "simple_interrupted_example.png"
         elif suture_type == "vertical_mattress":
-            ref_image_path = "vertical_mattress_final_product.png"
+            ref_image_path = "vertical_mattress_example.png"
         elif suture_type == "subcuticular":
-            ref_image_path = "subcuticular_final_product.png"
+            ref_image_path = "subcuticular_example.png"
         else:
             ref_image_path = None
         if ref_image_path and os.path.exists(ref_image_path):

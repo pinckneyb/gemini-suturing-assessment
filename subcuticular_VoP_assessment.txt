@@ -1,12 +1,12 @@
-subcuticular VoP assessment
+simple interrupted VoP assessment
 
-1) runs the suture, placing appropriate bites into dermal layer
-2) Enters the dermal layer directly across from exit site
-3) avoids multiple penetrations of the dermis
+1) runs the suture, placing appropriate bites into the dermal layer
+2) enters the dermal layer directly across from exit site
+3) avoids multiple penetration of the dermis
 4) avoids multiple forceps grasps of skin
 5) instrument ties with square knots
 6) approximates skin with appropriate tension
-7)economy of time and motion
+7) economy of time and motion
 	scale of 1-5
 	1) many unnecessary/disorganized movements
 	2) ...

@@ -8,11 +8,12 @@ import time
 class SuturingAssessor:
     def __init__(self, api_key: str):
         """Initialize the suturing assessor with Gemini API"""
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        self.client = genai
+        from google import genai
+        from google.genai import types
+        self.client = genai.Client(api_key=api_key)
+        self.types = types
         # Use gemini-2.5-pro for video analysis
-        self.model = 'gemini-2.5-pro'
+        self.model = 'models/gemini-2.5-pro'
         
         # Suture types and their assessment criteria
         self.suture_types = {
@@ -84,7 +85,7 @@ class SuturingAssessor:
             return {"error": "Suture type is unknown or not supported. Please select a valid suture type before assessment."}
         
         # Map rubric points to VIDEO or STILL for each suture type
-        # Based on your specification:
+        # Simple interrupted and vertical mattress:
         # 1. Passes needle perpendicular to skin on both sides - VIDEO
         # 2. Avoids multiple forceps grasps of skin - VIDEO  
         # 3. Instrument ties with square knots - VIDEO
@@ -92,10 +93,19 @@ class SuturingAssessor:
         # 5. Places sutures 0.5–1.0 cm apart - STILL
         # 6. Eversion of the skin edges - STILL
         # 7. Economy of time and motion - VIDEO
+        #
+        # Subcuticular (different criteria):
+        # 1. Runs the suture, placing appropriate bites into dermal layer - VIDEO
+        # 2. Enters the dermal layer directly across from exit site - VIDEO
+        # 3. Avoids multiple penetration of the dermis - VIDEO
+        # 4. Avoids multiple forceps grasps of skin - VIDEO
+        # 5. Instrument ties with square knots - VIDEO
+        # 6. Approximates skin with appropriate tension - STILL
+        # 7. Economy of time and motion - VIDEO
         rubric_map = {
             "simple_interrupted": ["VIDEO", "VIDEO", "VIDEO", "STILL", "STILL", "STILL", "VIDEO"],
             "vertical_mattress": ["VIDEO", "VIDEO", "VIDEO", "STILL", "STILL", "STILL", "VIDEO"],
-            "subcuticular": ["VIDEO", "VIDEO", "VIDEO", "STILL", "STILL", "STILL", "VIDEO"]
+            "subcuticular": ["VIDEO", "VIDEO", "VIDEO", "VIDEO", "VIDEO", "STILL", "VIDEO"]
         }
         
         vop_files = {
@@ -126,42 +136,48 @@ class SuturingAssessor:
                 prompt = f"""
 You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
-Assess ONLY this specific rubric point: {idx+1}) {point_text}
+Assess this specific rubric point: {idx+1}) {point_text}
 
-Output format (exactly):
-{idx+1}) {point_text}
-x/5 [rating_label]
-[Single line clinical justification]
+Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a single clinical, skeptical, actionable justification. 
+
+Most scores should be 3 (competent); use 4 only for clearly above-average, and 5 only for near-perfect. Be clinical and skeptical, avoid superlatives, and always provide actionable advice. 
 
 Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
-Most scores should be 3 (competent). Be clinical and skeptical. Provide only the rubric point, score, and single-line justification. NO video descriptions or extra text.
+Do not add any extra labels or commentary.
 """
                 with open(video_path, 'rb') as f:
                     video_bytes = f.read()
-                content = [prompt, {"mime_type": self._get_mime_type(video_path), "data": video_bytes}]
+                content = self.types.Content(parts=[
+                    self.types.Part.from_bytes(data=video_bytes, mime_type=self._get_mime_type(video_path)),
+                    self.types.Part.from_text(text=prompt)
+                ])
             else:  # STILL
                 # Assess still image-based criteria (no reference image comparison)
                 prompt = f"""
 You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
-Assess ONLY this specific rubric point: {idx+1}) {point_text}
+Assess this specific rubric point: {idx+1}) {point_text}
 
-Output format (exactly):
-{idx+1}) {point_text}
-x/5 [rating_label]
-[Single line clinical justification]
+Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a single clinical, skeptical, actionable justification. 
+
+Most scores should be 3 (competent); use 4 only for clearly above-average, and 5 only for near-perfect. Be clinical and skeptical, avoid superlatives, and always provide actionable advice. 
 
 Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
-Most scores should be 3 (competent). Be clinical and skeptical. Provide only the rubric point, score, and single-line justification. NO image descriptions or extra text.
+Do not add any extra labels or commentary.
 """
                 with open(final_image_path, 'rb') as f:
                     img_bytes = f.read()
-                content = [prompt, {"mime_type": "image/png", "data": img_bytes}]
+                content = self.types.Content(parts=[
+                    self.types.Part.from_bytes(data=img_bytes, mime_type='image/png'),
+                    self.types.Part.from_text(text=prompt)
+                ])
             
-            model = self.client.GenerativeModel(self.model)
-            response = model.generate_content(content)
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=[content]
+            )
             response_text = getattr(response, 'text', str(response))
             results.append(response_text.strip())
         
@@ -191,15 +207,21 @@ Most scores should be 3 (competent). Be clinical and skeptical. Provide only the
         
         # Summative comment
         prompt9 = f"""
-You are an expert surgical educator. Write ONLY a single paragraph labeled 'Summative Comment:' that provides specific, evidence-based, and actionable feedback for this {suture_type.replace('_', ' ')} suture. NO video descriptions or extra text.
+You are an expert surgical educator. Write a single, readable paragraph labeled 'Summative Comment:' that provides specific, evidence-based, and actionable feedback for this {suture_type.replace('_', ' ')} suture. Do not add any extra labels or commentary.
 """
         with open(video_path, 'rb') as f:
             video_bytes = f.read()
         with open(final_image_path, 'rb') as f:
             img_bytes = f.read()
-        content9 = [prompt9, {"mime_type": self._get_mime_type(video_path), "data": video_bytes}, {"mime_type": "image/png", "data": img_bytes}]
-        model = self.client.GenerativeModel(self.model)
-        response9 = model.generate_content(content9)
+        content9 = self.types.Content(parts=[
+            self.types.Part.from_bytes(data=video_bytes, mime_type=self._get_mime_type(video_path)),
+            self.types.Part.from_bytes(data=img_bytes, mime_type='image/png'),
+            self.types.Part.from_text(text=prompt9)
+        ])
+        response9 = self.client.models.generate_content(
+            model=self.model,
+            contents=[content9]
+        )
         response9_text = getattr(response9, 'text', str(response9))
         
         # Combine all results into a single formatted string
@@ -208,6 +230,8 @@ You are an expert surgical educator. Write ONLY a single paragraph labeled 'Summ
 
         return {"vop_assessment": assessment, "suture_type": suture_type, "video_file": os.path.basename(video_path)}
 
+from google import genai
+from google.genai import types
 import os
 
 def wait_for_file_active(client, uploaded_file, timeout=120, poll_interval=2):
