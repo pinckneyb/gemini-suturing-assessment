@@ -126,15 +126,16 @@ class SuturingAssessor:
                 prompt = f"""
 You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
-Assess this specific rubric point: {idx+1}) {point_text}
+Assess ONLY this specific rubric point: {idx+1}) {point_text}
 
-Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a single clinical, skeptical, actionable justification. 
-
-Most scores should be 3 (competent); use 4 only for clearly above-average, and 5 only for near-perfect. Be clinical and skeptical, avoid superlatives, and always provide actionable advice. 
+Output format (exactly):
+{idx+1}) {point_text}
+x/5 [rating_label]
+[Single line clinical justification]
 
 Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
-Do not add any extra labels or commentary.
+Most scores should be 3 (competent). Be clinical and skeptical. Provide only the rubric point, score, and single-line justification. NO video descriptions or extra text.
 """
                 with open(video_path, 'rb') as f:
                     video_bytes = f.read()
@@ -144,15 +145,16 @@ Do not add any extra labels or commentary.
                 prompt = f"""
 You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
-Assess this specific rubric point: {idx+1}) {point_text}
+Assess ONLY this specific rubric point: {idx+1}) {point_text}
 
-Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a single clinical, skeptical, actionable justification. 
-
-Most scores should be 3 (competent); use 4 only for clearly above-average, and 5 only for near-perfect. Be clinical and skeptical, avoid superlatives, and always provide actionable advice. 
+Output format (exactly):
+{idx+1}) {point_text}
+x/5 [rating_label]
+[Single line clinical justification]
 
 Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
-Do not add any extra labels or commentary.
+Most scores should be 3 (competent). Be clinical and skeptical. Provide only the rubric point, score, and single-line justification. NO image descriptions or extra text.
 """
                 with open(final_image_path, 'rb') as f:
                     img_bytes = f.read()
@@ -189,7 +191,7 @@ Do not add any extra labels or commentary.
         
         # Summative comment
         prompt9 = f"""
-You are an expert surgical educator. Write a single, readable paragraph labeled 'Summative Comment:' that provides specific, evidence-based, and actionable feedback for this {suture_type.replace('_', ' ')} suture. Do not add any extra labels or commentary.
+You are an expert surgical educator. Write ONLY a single paragraph labeled 'Summative Comment:' that provides specific, evidence-based, and actionable feedback for this {suture_type.replace('_', ' ')} suture. NO video descriptions or extra text.
 """
         with open(video_path, 'rb') as f:
             video_bytes = f.read()
