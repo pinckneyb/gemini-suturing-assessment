@@ -11,6 +11,7 @@ import os
 from typing import Optional
 from config import Config
 from gemini_assessor import SuturingAssessor
+from smart_crop import SmartCropper
 import cv2
 from PIL import Image, ImageTk
 from google.genai import types
@@ -27,6 +28,8 @@ class SuturingAssessmentGUI:
         self.suture_type = tk.StringVar(value="simple_interrupted")
         self.final_frame_image = None  # Store the selected final product frame
         self.final_frame_path = None
+        self.smart_crop_enabled = tk.BooleanVar(value=True)  # Default enabled
+        self.smart_cropper = SmartCropper(confidence_threshold=0.7)
         self.create_widgets()
 
     def create_widgets(self):
@@ -74,21 +77,29 @@ class SuturingAssessmentGUI:
         suture_combo.grid(row=0, column=1, sticky="w", padx=(0, 10))
         ttk.Label(suture_frame, text="(Select the type of suture being performed)").grid(row=0, column=2, sticky="w")
 
+        # Smart Crop Option
+        smart_crop_frame = ttk.LabelFrame(main_frame, text="Smart Crop Options", padding="10")
+        smart_crop_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        smart_crop_check = ttk.Checkbutton(smart_crop_frame, text="Enable Smart Crop (focus on active suture area)", 
+                                          variable=self.smart_crop_enabled)
+        smart_crop_check.grid(row=0, column=0, sticky="w")
+        ttk.Label(smart_crop_frame, text="Automatically crops final product image to focus on the most active suture area").grid(row=1, column=0, sticky="w", padx=(20, 0))
+
         # Action Buttons
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=4, column=0, columnspan=2, pady=20)
+        button_frame.grid(row=5, column=0, columnspan=2, pady=20)
         
         assess_btn = ttk.Button(button_frame, text="Assess Suturing", command=self.run_assessment, style="Accent.TButton")
         assess_btn.pack(side=tk.LEFT)
 
         # Progress Bar
         self.progress = ttk.Progressbar(main_frame, mode='indeterminate')
-        self.progress.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        self.progress.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(0, 10))
 
         # Results Notebook (Tabbed Interface)
         self.notebook = ttk.Notebook(main_frame)
-        self.notebook.grid(row=6, column=0, columnspan=2, sticky="nsew", pady=(0, 10))
-        main_frame.rowconfigure(6, weight=1)
+        self.notebook.grid(row=7, column=0, columnspan=2, sticky="nsew", pady=(0, 10))
+        main_frame.rowconfigure(7, weight=1)
 
         # Assessment Tab
         assess_frame = ttk.Frame(self.notebook)
@@ -108,7 +119,7 @@ class SuturingAssessmentGUI:
         # Status Bar
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
-        status_bar.grid(row=7, column=0, columnspan=2, sticky="ew")
+        status_bar.grid(row=8, column=0, columnspan=2, sticky="ew")
 
     def save_api_key(self):
         api_key = self.api_key.get().strip()
@@ -254,9 +265,28 @@ class SuturingAssessmentGUI:
     def _final_frame_result(self, found, candidate_path):
         self.progress.stop()
         if found:
-            self.final_frame_path = candidate_path
-            self.final_frame_image = Image.open(candidate_path)
-            self.status_var.set("Final product frame selected.")
+            # Apply smart cropping if enabled
+            if self.smart_crop_enabled.get():
+                self.status_var.set("Applying smart crop to final product image...")
+                self.root.update_idletasks()
+                
+                # Get the original video path for smart cropping
+                video_path = self.video_path.get()
+                cropped_path = self.smart_cropper.crop_final_image(candidate_path, video_path)
+                
+                if cropped_path and os.path.exists(cropped_path):
+                    self.final_frame_path = cropped_path
+                    self.final_frame_image = Image.open(cropped_path)
+                    self.status_var.set("Final product frame selected (smart cropped).")
+                else:
+                    # Fallback to original image if smart crop fails
+                    self.final_frame_path = candidate_path
+                    self.final_frame_image = Image.open(candidate_path)
+                    self.status_var.set("Final product frame selected (smart crop failed).")
+            else:
+                self.final_frame_path = candidate_path
+                self.final_frame_image = Image.open(candidate_path)
+                self.status_var.set("Final product frame selected.")
         else:
             self.final_frame_path = None
             self.final_frame_image = None
