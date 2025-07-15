@@ -125,7 +125,7 @@ class SuturingAssessor:
             if mode == "VIDEO":
                 # Assess video-based criteria
                 prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture video. 
+You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
 Assess this specific rubric point: {idx+1}) {point_text}
 
@@ -146,7 +146,7 @@ Do not add any extra labels or commentary.
             else:  # STILL
                 # Assess still image-based criteria (no reference image comparison)
                 prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture final product image. 
+You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
 Assess this specific rubric point: {idx+1}) {point_text}
 
@@ -198,7 +198,7 @@ Do not add any extra labels or commentary.
         
         # Summative comment
         prompt9 = f"""
-You are an expert surgical educator. Write a single, readable paragraph labeled 'Summative Comment:' that provides specific, evidence-based, and actionable feedback for this {suture_type.replace('_', ' ')} suture, referencing the video and final product image. Do not add any extra labels or commentary.
+You are an expert surgical educator. Write a single, readable paragraph labeled 'Summative Comment:' that provides specific, evidence-based, and actionable feedback for this {suture_type.replace('_', ' ')} suture. Do not add any extra labels or commentary.
 """
         with open(video_path, 'rb') as f:
             video_bytes = f.read()
