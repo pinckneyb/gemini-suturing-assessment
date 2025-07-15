@@ -206,8 +206,6 @@ You are an expert surgical educator. Write a single, readable paragraph labeled 
 
         return {"vop_assessment": assessment, "suture_type": suture_type, "video_file": os.path.basename(video_path)}
 
-import google.generativeai as genai
-from google.generativeai import types
 import os
 
 def wait_for_file_active(client, uploaded_file, timeout=120, poll_interval=2):
