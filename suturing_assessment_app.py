@@ -389,7 +389,7 @@ class SuturingAssessmentGUI:
         top.focus_set()
 
     def _display_final_product_images(self):
-        """Display the student final product image above the assessment text. Image is clickable to enlarge."""
+        """Display the reference and student final product images side by side above the assessment text. Both images are clickable to enlarge."""
         # Remove any previous image frames
         if hasattr(self, 'image_frame') and self.image_frame:
             self.image_frame.destroy()
@@ -398,14 +398,36 @@ class SuturingAssessmentGUI:
         self.image_frame = tk.Frame(parent)
         self.image_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
         
+        # Select reference image based on suture type
+        suture_type = self.suture_type.get()
+        ref_image_path = None
+        if suture_type == "simple_interrupted":
+            ref_image_path = "simple_interrupted_final_product.png"
+        elif suture_type == "vertical_mattress":
+            ref_image_path = "vertical_mattress_final_product.png"
+        elif suture_type == "subcuticular":
+            ref_image_path = "subcuticular_final_product.png"
+        
+        # Load and display reference image
+        if ref_image_path and os.path.exists(ref_image_path):
+            ref_img = Image.open(ref_image_path).resize((300, 300))
+            ref_tk_img = ImageTk.PhotoImage(ref_img)
+            ref_label = tk.Label(self.image_frame, image=ref_tk_img, text="Reference", compound=tk.TOP, cursor="hand2")
+            ref_label.image = ref_tk_img  # type: ignore
+            ref_label.pack(side=tk.LEFT, padx=20)
+            ref_label.bind("<Button-1>", lambda e, p=ref_image_path: self._show_enlarged_image(p, "Reference Image"))
+        else:
+            ref_label = tk.Label(self.image_frame, text="Reference image not found", width=25, height=12)
+            ref_label.pack(side=tk.LEFT, padx=20)
+        
         # Load and display student final product image
         if self.final_frame_path and os.path.exists(self.final_frame_path):
             stu_img = Image.open(self.final_frame_path).resize((300, 300))
             stu_tk_img = ImageTk.PhotoImage(stu_img)
-            stu_label = tk.Label(self.image_frame, image=stu_tk_img, text="Final Product Image", compound=tk.TOP, cursor="hand2")
+            stu_label = tk.Label(self.image_frame, image=stu_tk_img, text="Your Final Product", compound=tk.TOP, cursor="hand2")
             stu_label.image = stu_tk_img  # type: ignore
             stu_label.pack(side=tk.LEFT, padx=20)
-            stu_label.bind("<Button-1>", lambda e, p=self.final_frame_path: self._show_enlarged_image(p, "Final Product Image"))
+            stu_label.bind("<Button-1>", lambda e, p=self.final_frame_path: self._show_enlarged_image(p, "Your Final Product"))
         else:
             stu_label = tk.Label(self.image_frame, text="No final product image", width=25, height=12)
             stu_label.pack(side=tk.LEFT, padx=20)
@@ -602,6 +624,25 @@ class SuturingAssessmentGUI:
             img_w, img_h = 600, 450
             x = (width - img_w) // 2
             c.drawImage(self.final_frame_path, x, y - img_h, width=img_w, height=img_h, preserveAspectRatio=True, mask='auto')
+        
+        # Page 3: Reference Image (centered, enlarged)
+        c.showPage()
+        y = height - 60
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width // 2, y, "Reference Image:")
+        y -= 20
+        if suture_type == "simple_interrupted":
+            ref_image_path = "simple_interrupted_final_product.png"
+        elif suture_type == "vertical_mattress":
+            ref_image_path = "vertical_mattress_final_product.png"
+        elif suture_type == "subcuticular":
+            ref_image_path = "subcuticular_final_product.png"
+        else:
+            ref_image_path = None
+        if ref_image_path and os.path.exists(ref_image_path):
+            img_w, img_h = 600, 450
+            x = (width - img_w) // 2
+            c.drawImage(ref_image_path, x, y - img_h, width=img_w, height=img_h, preserveAspectRatio=True, mask='auto')
 
         c.save()
         messagebox.showinfo("PDF Saved", f"PDF report saved to: {pdf_path}")
