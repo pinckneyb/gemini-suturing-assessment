@@ -8,12 +8,11 @@ import time
 class SuturingAssessor:
     def __init__(self, api_key: str):
         """Initialize the suturing assessor with Gemini API"""
-        from google import genai
-        from google.genai import types
-        self.client = genai.Client(api_key=api_key)
-        self.types = types
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        self.client = genai
         # Use gemini-2.5-pro for video analysis
-        self.model = 'models/gemini-2.5-pro'
+        self.model = 'gemini-2.5-pro'
         
         # Suture types and their assessment criteria
         self.suture_types = {
@@ -139,10 +138,7 @@ Do not add any extra labels or commentary.
 """
                 with open(video_path, 'rb') as f:
                     video_bytes = f.read()
-                content = self.types.Content(parts=[
-                    self.types.Part.from_bytes(data=video_bytes, mime_type=self._get_mime_type(video_path)),
-                    self.types.Part.from_text(text=prompt)
-                ])
+                content = [prompt, {"mime_type": self._get_mime_type(video_path), "data": video_bytes}]
             else:  # STILL
                 # Assess still image-based criteria (no reference image comparison)
                 prompt = f"""
@@ -160,15 +156,10 @@ Do not add any extra labels or commentary.
 """
                 with open(final_image_path, 'rb') as f:
                     img_bytes = f.read()
-                content = self.types.Content(parts=[
-                    self.types.Part.from_bytes(data=img_bytes, mime_type='image/png'),
-                    self.types.Part.from_text(text=prompt)
-                ])
+                content = [prompt, {"mime_type": "image/png", "data": img_bytes}]
             
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=[content]
-            )
+            model = self.client.GenerativeModel(self.model)
+            response = model.generate_content(content)
             response_text = getattr(response, 'text', str(response))
             results.append(response_text.strip())
         
@@ -204,15 +195,9 @@ You are an expert surgical educator. Write a single, readable paragraph labeled 
             video_bytes = f.read()
         with open(final_image_path, 'rb') as f:
             img_bytes = f.read()
-        content9 = self.types.Content(parts=[
-            self.types.Part.from_bytes(data=video_bytes, mime_type=self._get_mime_type(video_path)),
-            self.types.Part.from_bytes(data=img_bytes, mime_type='image/png'),
-            self.types.Part.from_text(text=prompt9)
-        ])
-        response9 = self.client.models.generate_content(
-            model=self.model,
-            contents=[content9]
-        )
+        content9 = [prompt9, {"mime_type": self._get_mime_type(video_path), "data": video_bytes}, {"mime_type": "image/png", "data": img_bytes}]
+        model = self.client.GenerativeModel(self.model)
+        response9 = model.generate_content(content9)
         response9_text = getattr(response9, 'text', str(response9))
         
         # Combine all results into a single formatted string
@@ -221,8 +206,8 @@ You are an expert surgical educator. Write a single, readable paragraph labeled 
 
         return {"vop_assessment": assessment, "suture_type": suture_type, "video_file": os.path.basename(video_path)}
 
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+from google.generativeai import types
 import os
 
 def wait_for_file_active(client, uploaded_file, timeout=120, poll_interval=2):
