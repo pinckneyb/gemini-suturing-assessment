@@ -11,7 +11,6 @@ import os
 from typing import Optional
 from config import Config
 from gemini_assessor import SuturingAssessor
-from smart_crop import SmartCropper
 import cv2
 from PIL import Image, ImageTk
 from google.genai import types
@@ -28,8 +27,6 @@ class SuturingAssessmentGUI:
         self.suture_type = tk.StringVar(value="simple_interrupted")
         self.final_frame_image = None  # Store the selected final product frame
         self.final_frame_path = None
-        self.smart_crop_enabled = tk.BooleanVar(value=True)  # Default enabled
-        self.smart_cropper = SmartCropper(confidence_threshold=0.7)
         self.create_widgets()
 
     def create_widgets(self):
@@ -77,29 +74,24 @@ class SuturingAssessmentGUI:
         suture_combo.grid(row=0, column=1, sticky="w", padx=(0, 10))
         ttk.Label(suture_frame, text="(Select the type of suture being performed)").grid(row=0, column=2, sticky="w")
 
-        # Smart Crop Option
-        smart_crop_frame = ttk.LabelFrame(main_frame, text="Smart Crop Options", padding="10")
-        smart_crop_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 10))
-        smart_crop_check = ttk.Checkbutton(smart_crop_frame, text="Enable Smart Crop (focus on active suture area)", 
-                                          variable=self.smart_crop_enabled)
-        smart_crop_check.grid(row=0, column=0, sticky="w")
-        ttk.Label(smart_crop_frame, text="Automatically crops final product image to focus on the most active suture area").grid(row=1, column=0, sticky="w", padx=(20, 0))
-
         # Action Buttons
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=5, column=0, columnspan=2, pady=20)
+        button_frame.grid(row=4, column=0, columnspan=2, pady=20)
         
         assess_btn = ttk.Button(button_frame, text="Assess Suturing", command=self.run_assessment, style="Accent.TButton")
-        assess_btn.pack(side=tk.LEFT)
+        assess_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        batch_btn = ttk.Button(button_frame, text="Batch Assessment", command=self.batch_assessment)
+        batch_btn.pack(side=tk.LEFT)
 
         # Progress Bar
         self.progress = ttk.Progressbar(main_frame, mode='indeterminate')
-        self.progress.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        self.progress.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(0, 10))
 
         # Results Notebook (Tabbed Interface)
         self.notebook = ttk.Notebook(main_frame)
-        self.notebook.grid(row=7, column=0, columnspan=2, sticky="nsew", pady=(0, 10))
-        main_frame.rowconfigure(7, weight=1)
+        self.notebook.grid(row=6, column=0, columnspan=2, sticky="nsew", pady=(0, 10))
+        main_frame.rowconfigure(6, weight=1)
 
         # Assessment Tab
         assess_frame = ttk.Frame(self.notebook)
@@ -119,7 +111,7 @@ class SuturingAssessmentGUI:
         # Status Bar
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
-        status_bar.grid(row=8, column=0, columnspan=2, sticky="ew")
+        status_bar.grid(row=7, column=0, columnspan=2, sticky="ew")
 
     def save_api_key(self):
         api_key = self.api_key.get().strip()
@@ -265,28 +257,9 @@ class SuturingAssessmentGUI:
     def _final_frame_result(self, found, candidate_path):
         self.progress.stop()
         if found:
-            # Apply smart cropping if enabled
-            if self.smart_crop_enabled.get():
-                self.status_var.set("Applying smart crop to final product image...")
-                self.root.update_idletasks()
-                
-                # Get the original video path for smart cropping
-                video_path = self.video_path.get()
-                cropped_path = self.smart_cropper.crop_final_image(candidate_path, video_path)
-                
-                if cropped_path and os.path.exists(cropped_path):
-                    self.final_frame_path = cropped_path
-                    self.final_frame_image = Image.open(cropped_path)
-                    self.status_var.set("Final product frame selected (smart cropped).")
-                else:
-                    # Fallback to original image if smart crop fails
-                    self.final_frame_path = candidate_path
-                    self.final_frame_image = Image.open(candidate_path)
-                    self.status_var.set("Final product frame selected (smart crop failed).")
-            else:
-                self.final_frame_path = candidate_path
-                self.final_frame_image = Image.open(candidate_path)
-                self.status_var.set("Final product frame selected.")
+            self.final_frame_path = candidate_path
+            self.final_frame_image = Image.open(candidate_path)
+            self.status_var.set("Final product frame selected.")
         else:
             self.final_frame_path = None
             self.final_frame_image = None
@@ -690,6 +663,422 @@ class SuturingAssessmentGUI:
                     subprocess.call(('xdg-open', pdf_path))
             except Exception as e:
                 messagebox.showerror("Error", f"Could not open PDF: {e}")
+
+    def batch_assessment(self):
+        """Initiate batch assessment - choose between single folder or multi-folder"""
+        choice = messagebox.askyesnocancel("Batch Assessment Type", 
+                                          "Choose batch assessment type:\n\n"
+                                          "Yes = Multi-folder (different suture types)\n"
+                                          "No = Single folder (same suture type)\n"
+                                          "Cancel = Abort")
+        
+        if choice is None:  # Cancel
+            return
+        elif choice:  # Multi-folder
+            self.multi_folder_batch_assessment()
+        else:  # Single folder
+            self.single_folder_batch_assessment()
+
+    def single_folder_batch_assessment(self):
+        """Initiate batch assessment of multiple videos in a single folder"""
+        from pathlib import Path
+        
+        folder_path = filedialog.askdirectory(title="Select Folder with Videos")
+        if not folder_path:
+            return
+        
+        # Get all video files
+        video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.m4v']
+        video_files = []
+        for ext in video_extensions:
+            video_files.extend(Path(folder_path).glob(f"*{ext}"))
+        
+        if not video_files:
+            messagebox.showwarning("No Videos Found", "No video files found in selected folder")
+            return
+        
+        # Confirm with user
+        result = messagebox.askyesno("Confirm Batch Assessment", 
+                                    f"Assess {len(video_files)} videos as {self.suture_type.get()} sutures?\n\n"
+                                    f"Videos will be processed one by one and PDF reports will be saved in the same folder.")
+        if not result:
+            return
+        
+        # Create batch configuration
+        batch_config = [(folder_path, self.suture_type.get(), video_files)]
+        
+        # Run batch processing in separate thread
+        thread = threading.Thread(target=self._run_multi_batch_assessment, args=(batch_config,))
+        thread.daemon = True
+        thread.start()
+
+    def multi_folder_batch_assessment(self):
+        """Initiate multi-folder batch assessment with different suture types"""
+        self._show_multi_folder_setup_dialog()
+
+    def _show_multi_folder_setup_dialog(self):
+        """Show dialog for setting up multi-folder batch assessment"""
+        from tkinter import Toplevel, Label, Button, Frame, ttk
+        from pathlib import Path
+        
+        # Create setup window
+        setup_win = Toplevel(self.root)
+        setup_win.title("Multi-Folder Batch Assessment Setup")
+        setup_win.geometry("600x500")
+        setup_win.transient(self.root)
+        setup_win.grab_set()
+        
+        # Store folder configurations
+        folder_configs = []
+        
+        # Main frame
+        main_frame = ttk.Frame(setup_win, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        title_label = ttk.Label(main_frame, text="Multi-Folder Batch Assessment Setup", font=("Arial", 14, "bold"))
+        title_label.pack(pady=(0, 20))
+        
+        # Instructions
+        instructions = ttk.Label(main_frame, text="Add folders containing videos for different suture types.\nEach folder will be assessed with its specified suture type.")
+        instructions.pack(pady=(0, 20))
+        
+        # Folder list frame
+        list_frame = ttk.LabelFrame(main_frame, text="Folders to Process", padding="10")
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
+        
+        # Treeview for folders
+        columns = ("Folder", "Suture Type", "Videos")
+        tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=6)
+        
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=150)
+        
+        tree.pack(fill=tk.BOTH, expand=True)
+        
+        # Scrollbar for treeview
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=tree.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Button frame
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(0, 20))
+        
+        def add_folder():
+            folder_path = filedialog.askdirectory(title="Select Folder with Videos")
+            if not folder_path:
+                return
+            
+            # Check for video files
+            video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.m4v']
+            video_files = []
+            for ext in video_extensions:
+                video_files.extend(Path(folder_path).glob(f"*{ext}"))
+            
+            if not video_files:
+                messagebox.showwarning("No Videos Found", f"No video files found in {folder_path}")
+                return
+            
+            # Create suture type selection dialog
+            suture_win = Toplevel(setup_win)
+            suture_win.title("Select Suture Type")
+            suture_win.geometry("300x150")
+            suture_win.transient(setup_win)
+            suture_win.grab_set()
+            
+            suture_type = tk.StringVar(value="simple_interrupted")
+            
+            ttk.Label(suture_win, text="Select suture type for this folder:").pack(pady=10)
+            suture_combo = ttk.Combobox(suture_win, textvariable=suture_type, state="readonly", width=30)
+            suture_combo['values'] = ["simple_interrupted", "vertical_mattress", "subcuticular"]
+            suture_combo.pack(pady=10)
+            
+            def confirm_suture():
+                folder_name = os.path.basename(folder_path)
+                tree.insert("", tk.END, values=(folder_name, suture_type.get(), len(video_files)))
+                folder_configs.append((folder_path, suture_type.get(), video_files))
+                suture_win.destroy()
+            
+            ttk.Button(suture_win, text="Confirm", command=confirm_suture).pack(pady=10)
+        
+        def remove_folder():
+            selected = tree.selection()
+            if selected:
+                item = tree.item(selected[0])
+                folder_name = item['values'][0]
+                
+                # Remove from folder_configs
+                for i, (path, suture_type, files) in enumerate(folder_configs):
+                    if os.path.basename(path) == folder_name:
+                        folder_configs.pop(i)
+                        break
+                
+                tree.delete(selected[0])
+        
+        def clear_all():
+            tree.delete(*tree.get_children())
+            folder_configs.clear()
+        
+        def start_assessment():
+            if not folder_configs:
+                messagebox.showwarning("No Folders", "Please add at least one folder before starting.")
+                return
+            
+            # Calculate total videos
+            total_videos = sum(len(files) for _, _, files in folder_configs)
+            
+            # Confirm with user
+            result = messagebox.askyesno("Confirm Multi-Folder Batch Assessment", 
+                                        f"Process {len(folder_configs)} folders with {total_videos} total videos?\n\n"
+                                        f"Folders will be processed in order and PDF reports saved in each folder.")
+            if not result:
+                return
+            
+            setup_win.destroy()
+            
+            # Run batch processing in separate thread
+            thread = threading.Thread(target=self._run_multi_batch_assessment, args=(folder_configs,))
+            thread.daemon = True
+            thread.start()
+        
+        # Add buttons
+        ttk.Button(button_frame, text="Add Folder", command=add_folder).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(button_frame, text="Remove Selected", command=remove_folder).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(button_frame, text="Clear All", command=clear_all).pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Start/Cancel buttons
+        action_frame = ttk.Frame(main_frame)
+        action_frame.pack(fill=tk.X)
+        
+        ttk.Button(action_frame, text="Start Assessment", command=start_assessment, style="Accent.TButton").pack(side=tk.RIGHT, padx=(10, 0))
+        ttk.Button(action_frame, text="Cancel", command=setup_win.destroy).pack(side=tk.RIGHT)
+
+    def _run_multi_batch_assessment(self, batch_config):
+        """Run batch assessment across multiple folders with different suture types"""
+        from pathlib import Path
+        import datetime
+        
+        # Calculate total videos across all folders
+        total_videos = sum(len(files) for _, _, files in batch_config)
+        total_folders = len(batch_config)
+        
+        self.root.after(0, lambda: self.status_var.set(f"Starting multi-folder batch assessment: {total_folders} folders, {total_videos} videos..."))
+        self.root.after(0, lambda: self.progress.start())
+        
+        successful_assessments = 0
+        failed_assessments = 0
+        current_video_global = 0
+        
+        # Process each folder
+        for folder_idx, (folder_path, suture_type, video_files) in enumerate(batch_config):
+            folder_name = os.path.basename(folder_path)
+            
+            self.root.after(0, lambda f=folder_name, idx=folder_idx+1, total=total_folders: 
+                           self.status_var.set(f"Processing folder {idx}/{total}: {f}"))
+            
+            # Process videos in this folder
+            for video_idx, video_file in enumerate(video_files):
+                current_video_global += 1
+                current_video_in_folder = video_idx + 1
+                
+                try:
+                    # Update status on main thread
+                    self.root.after(0, lambda v=video_file.name, f=folder_name, cg=current_video_global, 
+                                   cf=current_video_in_folder, tf=len(video_files), tg=total_videos: 
+                                   self.status_var.set(f"Processing {f}: {v} ({cf}/{tf}) - Total: {cg}/{tg}"))
+                    
+                    # Use existing assessment logic with specific suture type
+                    result = self._assess_single_video_with_type(str(video_file), suture_type)
+                    
+                    if result:
+                        # Generate PDF using existing method
+                        pdf_path = self._generate_batch_pdf_with_type(result, str(video_file), folder_path, suture_type)
+                        successful_assessments += 1
+                        self.root.after(0, lambda v=video_file.name, f=folder_name, cg=current_video_global, 
+                                       cf=current_video_in_folder, tf=len(video_files), tg=total_videos: 
+                                       self.status_var.set(f"Completed {f}: {v} ({cf}/{tf}) - Total: {cg}/{tg} - PDF saved"))
+                    else:
+                        failed_assessments += 1
+                        self.root.after(0, lambda v=video_file.name, f=folder_name, cg=current_video_global, 
+                                       cf=current_video_in_folder, tf=len(video_files), tg=total_videos: 
+                                       self.status_var.set(f"Failed to assess {f}: {v} ({cf}/{tf}) - Total: {cg}/{tg}"))
+                    
+                except Exception as e:
+                    failed_assessments += 1
+                    self.root.after(0, lambda v=video_file.name, f=folder_name, cg=current_video_global, 
+                                   cf=current_video_in_folder, tf=len(video_files), tg=total_videos, err=str(e): 
+                                   self.status_var.set(f"Error processing {f}: {v} ({cf}/{tf}) - Total: {cg}/{tg}: {err}"))
+                    print(f"Error processing {video_file.name}: {e}")
+        
+        # Final status update on main thread
+        self.root.after(0, lambda: self.progress.stop())
+        self.root.after(0, lambda: self.status_var.set(f"Multi-folder batch assessment complete ({total_videos}/{total_videos}). {successful_assessments} successful, {failed_assessments} failed."))
+        self.root.after(0, lambda: messagebox.showinfo("Batch Complete", 
+                           f"Processed {total_folders} folders with {total_videos} total videos.\n"
+                           f"Successful: {successful_assessments}\n"
+                           f"Failed: {failed_assessments}\n\n"
+                           f"PDF reports saved in respective folders."))
+
+    def _run_batch_assessment(self, folder_path, video_files):
+        """Run batch assessment of multiple videos (legacy method for single folder)"""
+        # Convert to new format and use multi-batch method
+        batch_config = [(folder_path, self.suture_type.get(), video_files)]
+        self._run_multi_batch_assessment(batch_config)
+
+    def _assess_single_video_with_type(self, video_path, suture_type):
+        """Assess a single video with specified suture type"""
+        try:
+            # Validate inputs
+            if not video_path or not os.path.exists(video_path):
+                return None
+            
+            if not suture_type:
+                return None
+            
+            api_key = self.api_key.get().strip()
+            if not api_key:
+                return None
+            
+            # Initialize assessor
+            self.assessor = SuturingAssessor(api_key)
+            
+            # Extract final frame
+            final_frame_path = self._extract_final_frame_for_batch(video_path)
+            if not final_frame_path:
+                return None
+            
+            # Preprocess video if needed
+            processed_video_path = self.preprocess_video(video_path)
+            
+            # Run assessment with specified suture type
+            result = self.assessor.assess_vop(processed_video_path, final_frame_path, None, suture_type)
+            
+            # Clean up processed video if it was created
+            if processed_video_path != video_path and os.path.exists(processed_video_path):
+                try:
+                    os.remove(processed_video_path)
+                except:
+                    pass
+            
+            # Clean up final frame
+            if os.path.exists(final_frame_path):
+                try:
+                    os.remove(final_frame_path)
+                except:
+                    pass
+            
+            return result
+            
+        except Exception as e:
+            print(f"Error in _assess_single_video_with_type: {e}")
+            return None
+
+    def _assess_single_video(self, video_path):
+        """Assess a single video using existing logic (legacy method)"""
+        return self._assess_single_video_with_type(video_path, self.suture_type.get())
+
+    def _extract_final_frame_for_batch(self, video_path):
+        """Extract final frame for batch processing"""
+        import cv2
+        
+        cap = cv2.VideoCapture(video_path)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_idx = max(0, total_frames - 10)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            # Fallback to last frame
+            frame_idx = total_frames - 1
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = cap.read()
+        cap.release()
+        
+        if not ret or frame is None:
+            return None
+        
+        # Resize so long side is 1024 pixels, maintain aspect ratio
+        h, w = frame.shape[:2]
+        if h > w:
+            new_h = 1024
+            new_w = int(w * (1024 / h))
+        else:
+            new_w = 1024
+            new_h = int(h * (1024 / w))
+        resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        
+        # Save to temporary file
+        import tempfile
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.png')
+        os.close(temp_fd)
+        cv2.imwrite(temp_path, resized)
+        
+        return temp_path
+
+    def _generate_batch_pdf_with_type(self, assessment, video_path, output_folder, suture_type):
+        """Generate PDF for batch processing with specified suture type"""
+        import datetime
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader, simpleSplit
+        
+        now = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        video_filename = os.path.basename(video_path)
+        
+        # Create PDF filename
+        pdf_filename = f"Assessment_{suture_type}_{video_filename}_{now}.pdf"
+        pdf_path = os.path.join(output_folder, pdf_filename)
+        
+        c = canvas.Canvas(pdf_path, pagesize=letter)
+        width, height = letter
+        y = height - 40
+        
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(40, y, f"Suturing Assessment Report - {video_filename}")
+        y -= 30
+        c.setFont("Helvetica", 10)
+        c.drawString(40, y, f"Video File: {video_filename}")
+        y -= 15
+        c.drawString(40, y, f"Suture Type: {suture_type.replace('_', ' ').title()}")
+        y -= 15
+        c.drawString(40, y, f"Assessment Date: {now}")
+        y -= 25
+        
+        # Assessment output
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(40, y, "Assessment Results:")
+        y -= 20
+        c.setFont("Helvetica", 10)
+        
+        assessment_text = None
+        if isinstance(assessment, dict) and 'vop_assessment' in assessment:
+            assessment_text = assessment['vop_assessment']
+        else:
+            assessment_text = str(assessment)
+        
+        # Remove duplicate headings
+        import re
+        assessment_text = re.sub(r"SUTURING ASSESSMENT RESULTS.*?={10,}\n+", "", assessment_text, flags=re.DOTALL)
+        
+        # Word wrap assessment text
+        max_width = width - 80
+        for line in assessment_text.splitlines():
+            wrapped = simpleSplit(line.strip(), "Helvetica", 10, max_width)
+            for wline in wrapped:
+                if y < 60:
+                    c.showPage()
+                    y = height - 40
+                    c.setFont("Helvetica", 10)
+                c.drawString(40, y, wline)
+                y -= 12
+        
+        c.save()
+        return pdf_path
+
+    def _generate_batch_pdf(self, assessment, video_path, output_folder):
+        """Generate PDF for batch processing (legacy method)"""
+        return self._generate_batch_pdf_with_type(assessment, video_path, output_folder, self.suture_type.get())
 
 def main():
     root = tk.Tk()

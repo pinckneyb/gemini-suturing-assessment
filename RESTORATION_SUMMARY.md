@@ -21,8 +21,26 @@
 - **Removed**: Timeout handling and line stripping that interfered with output
 - **Restored**: Simple, clean output assembly
 
+## Major Improvement Added
+
+### 4. Hybrid Summative Comment Generation
+- **Problem**: Summative comments were generated independently via separate API call, often contradicting individual rubric scores
+- **Initial Solution**: Generate summative comment programmatically based on actual rubric scores
+- **Improved Solution**: Hybrid approach combining programmatic analysis with Gemini's natural language generation
+- **Streamlined Format**: Individual rubric points now have brief justifications, with detailed analysis moved to summative comment
+- **Stringent Grading Curve**: 4s and 5s are now as rare as 1s and 2s, with 3/5 as the true default for competent performance
+- **Benefits**:
+  - Ensures consistency between individual scores and final comment
+  - Eliminates mechanical repetition of scores
+  - Provides natural, flowing narrative text
+  - Maintains concrete, actionable feedback
+  - Uses professional medical terminology
+  - Includes fallback mechanism for reliability
+  - Reduces redundancy and improves readability
+  - More realistic and stringent grading distribution for surgical training
+
 ## Files Restored
-- `gemini_assessor.py`: 12KB, 259 lines (from GitHub)
+- `gemini_assessor.py`: Updated with programmatic summative comment generation
 - `suturing_assessment_app.py`: 32KB, 669 lines (from GitHub)
 
 ## Prevention Measures Implemented
@@ -30,6 +48,7 @@
 ### 1. Documentation Lock
 - `WORKING_PROMPTS_BACKUP.md`: Complete backup of working prompts and API structure
 - Contains exact code snippets and "DO NOT MODIFY" warnings
+- Updated to reflect programmatic summative comment generation
 
 ### 2. Validation Script
 - `test_assessment_format.py`: Automated format validation
@@ -37,11 +56,14 @@
 - Run after any changes to ensure format is maintained
 
 ### 3. Testing Checklist
-- 7 rubric points in 3-line format
+- 7 rubric points in 3-line format with brief justifications
 - Correct final score calculation
-- Single paragraph summative comment
+- Natural narrative summative comment (not mechanical repetition)
 - No verbose descriptions or JSON output
 - No duplicate headers
+- Summative comment aligns with individual rubric scores
+- Summative comment provides detailed analysis and actionable advice
+- Individual justifications are concise and focused
 
 ## Key Lessons Learned
 
@@ -49,6 +71,8 @@
 2. **Prompt Consistency**: Video and still prompts must be identical
 3. **Minimal Processing**: Post-processing can interfere with output format
 4. **Version Control**: GitHub backup saved the day
+5. **Independent Generation**: Separate API calls for summative comments can create inconsistencies
+6. **Hybrid Approaches**: Combining programmatic analysis with AI generation provides best results
 
 ## Future Changes
 
@@ -63,7 +87,8 @@
 - API structure (use `google.genai`, not `google.generativeai`)
 - Prompt format (keep identical for video and still)
 - Output assembly (no post-processing)
+- Summative comment generation (use hybrid approach, not separate independent API call)
 
-## Status: ✅ RESTORED AND LOCKED DOWN
+## Status: ✅ RESTORED AND IMPROVED
 
-The application is now back to producing structured, professional VoP assessment output as it did yesterday. All critical components are documented and protected against future regressions. 
+The application now produces structured, professional VoP assessment output with consistent summative comments that align with individual rubric scores. All critical components are documented and protected against future regressions. 
