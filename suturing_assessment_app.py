@@ -878,12 +878,16 @@ class SuturingAssessmentGUI:
             self.root.after(0, lambda f=folder_name, idx=folder_idx+1, total=total_folders: 
                            self.status_var.set(f"Processing folder {idx}/{total}: {f}"))
             
+            print(f"Starting folder {folder_idx + 1}/{total_folders}: {folder_name} with {len(video_files)} videos")
+            
             # Process videos in this folder
             for video_idx, video_file in enumerate(video_files):
                 current_video_global += 1
                 current_video_in_folder = video_idx + 1
                 
                 try:
+                    print(f"Processing video {current_video_global}/{total_videos}: {video_file.name} in folder {folder_name}")
+                    
                     # Update status on main thread
                     self.root.after(0, lambda v=video_file.name, f=folder_name, cg=current_video_global, 
                                    cf=current_video_in_folder, tf=len(video_files), tg=total_videos: 
@@ -893,6 +897,7 @@ class SuturingAssessmentGUI:
                     result = self._assess_single_video_with_type(str(video_file), suture_type)
                     
                     if result:
+                        print(f"Assessment successful for {video_file.name}")
                         # Generate PDF using existing method
                         pdf_path = self._generate_batch_pdf_with_type(result, str(video_file), folder_path, suture_type)
                         successful_assessments += 1
@@ -900,17 +905,22 @@ class SuturingAssessmentGUI:
                                        cf=current_video_in_folder, tf=len(video_files), tg=total_videos: 
                                        self.status_var.set(f"Completed {f}: {v} ({cf}/{tf}) - Total: {cg}/{tg} - PDF saved"))
                     else:
+                        print(f"Assessment failed for {video_file.name} - no result returned")
                         failed_assessments += 1
                         self.root.after(0, lambda v=video_file.name, f=folder_name, cg=current_video_global, 
                                        cf=current_video_in_folder, tf=len(video_files), tg=total_videos: 
                                        self.status_var.set(f"Failed to assess {f}: {v} ({cf}/{tf}) - Total: {cg}/{tg}"))
                     
                 except Exception as e:
+                    print(f"Exception processing {video_file.name}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     failed_assessments += 1
                     self.root.after(0, lambda v=video_file.name, f=folder_name, cg=current_video_global, 
                                    cf=current_video_in_folder, tf=len(video_files), tg=total_videos, err=str(e): 
                                    self.status_var.set(f"Error processing {f}: {v} ({cf}/{tf}) - Total: {cg}/{tg}: {err}"))
-                    print(f"Error processing {video_file.name}: {e}")
+            
+            print(f"Completed folder {folder_idx + 1}/{total_folders}: {folder_name}")
         
         # Final status update on main thread
         self.root.after(0, lambda: self.progress.stop())
@@ -930,49 +940,63 @@ class SuturingAssessmentGUI:
     def _assess_single_video_with_type(self, video_path, suture_type):
         """Assess a single video with specified suture type"""
         try:
+            print(f"Starting assessment of {video_path} with suture type {suture_type}")
+            
             # Validate inputs
             if not video_path or not os.path.exists(video_path):
+                print(f"Video path invalid or file doesn't exist: {video_path}")
                 return None
             
             if not suture_type:
+                print("Suture type is empty")
                 return None
             
             api_key = self.api_key.get().strip()
             if not api_key:
+                print("API key is empty")
                 return None
             
+            print("Initializing assessor...")
             # Initialize assessor
             self.assessor = SuturingAssessor(api_key)
             
+            print("Extracting final frame...")
             # Extract final frame
             final_frame_path = self._extract_final_frame_for_batch(video_path)
             if not final_frame_path:
+                print("Failed to extract final frame")
                 return None
             
+            print("Preprocessing video...")
             # Preprocess video if needed
             processed_video_path = self.preprocess_video(video_path)
             
+            print("Running assessment...")
             # Run assessment with specified suture type
             result = self.assessor.assess_vop(processed_video_path, final_frame_path, None, suture_type)
             
+            print("Cleaning up temporary files...")
             # Clean up processed video if it was created
             if processed_video_path != video_path and os.path.exists(processed_video_path):
                 try:
                     os.remove(processed_video_path)
-                except:
-                    pass
+                except Exception as cleanup_error:
+                    print(f"Warning: Could not remove processed video: {cleanup_error}")
             
             # Clean up final frame
             if os.path.exists(final_frame_path):
                 try:
                     os.remove(final_frame_path)
-                except:
-                    pass
+                except Exception as cleanup_error:
+                    print(f"Warning: Could not remove final frame: {cleanup_error}")
             
+            print(f"Assessment completed successfully for {video_path}")
             return result
             
         except Exception as e:
-            print(f"Error in _assess_single_video_with_type: {e}")
+            print(f"Error in _assess_single_video_with_type for {video_path}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _assess_single_video(self, video_path):

@@ -152,17 +152,19 @@ brief justification.
 
 Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
 Scoring criteria (angle definitions):
 
-5/5 exemplary → consistently within 5° of perpendicular (85–95°) on both entry and exit.
+5/5 exemplary → consistently within 3° of perpendicular (87–93°) on both entry and exit. EXTREMELY RARE - only for truly exceptional technique that could be used as a teaching example.
 
-4/5 proficient → mostly within 10° (80–100°), occasional minor deviation.
+4/5 proficient → mostly within 8° (82–98°), occasional minor deviation. Good performance with room for minor improvement.
 
-3/5 competent → generally within 15° (75–105°), some noticeable deviations.
+3/5 competent → generally within 15° (75–105°), some noticeable deviations. Adequate performance, typical for learning students.
 
-2/5 substandard → frequent deviation beyond 15°.
+2/5 substandard → frequent deviation beyond 15°. Below average performance requiring improvement.
 
-1/5 poor → predominantly oblique (>20° deviation), few or no perpendicular passes.
+1/5 poor → predominantly oblique (>20° deviation), few or no perpendicular passes. RARE - only for truly poor technique that shows fundamental misunderstanding.
 
 Focus on:
 
@@ -192,17 +194,19 @@ brief justification.
 
 Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
 Scoring criteria:
 
-5/5 exemplary → single, precise forceps grasp per skin edge, no regrasping or repositioning needed.
+5/5 exemplary → single, precise forceps grasp per skin edge, no regrasping or repositioning needed. RARE - only for exceptional technique that could be used as a teaching example.
 
-4/5 proficient → mostly single grasps, occasional minor repositioning (1-2 instances per stitch).
+4/5 proficient → mostly single grasps, occasional minor repositioning (1-2 instances per stitch). Good performance with room for minor improvement.
 
-3/5 competent → generally single grasps, some regrasping or repositioning (3-4 instances per stitch).
+3/5 competent → generally single grasps, some regrasping or repositioning (3-4 instances per stitch). Adequate performance, typical for learning students.
 
-2/5 substandard → frequent multiple grasps, significant repositioning needed (5+ instances per stitch).
+2/5 substandard → frequent multiple grasps, significant repositioning needed (5+ instances per stitch). Below average performance requiring improvement.
 
-1/5 poor → excessive regrasping, multiple attempts per edge, poor tissue handling.
+1/5 poor → excessive regrasping, multiple attempts per edge, poor tissue handling. RARE - only for truly poor technique that shows fundamental misunderstanding.
 
 Focus on:
 
@@ -234,23 +238,25 @@ brief justification.
 
 Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
 Scoring criteria:
 
-5/5 exemplary → consistently perfect square knots, proper tension, no slippage, clean throws.
+5/5 exemplary → consistently perfect square knots, secure throws, no slippage. RARE - only for exceptional technique that could be used as a teaching example.
 
-4/5 proficient → mostly square knots, occasional minor tension issues, rare slippage.
+4/5 proficient → mostly square knots, occasional minor issues, rare slippage. Good performance with room for minor improvement.
 
-3/5 competent → generally square knots, some tension variation, occasional slippage or granny knots.
+3/5 competent → generally square knots, some variation, occasional slippage or granny knots. Adequate performance, typical for learning students.
 
-2/5 substandard → frequent non-square knots, poor tension control, significant slippage.
+2/5 substandard → frequent non-square knots, significant slippage. Below average performance requiring improvement.
 
-1/5 poor → predominantly granny knots or slip knots, poor tension, frequent failures.
+1/5 poor → predominantly granny knots or slip knots, frequent failures. RARE - only for truly poor technique that shows fundamental misunderstanding.
 
 Focus on:
 
 knot type (square vs granny vs slip),
 
-tension consistency,
+knot security,
 
 slippage frequency,
 
@@ -278,17 +284,257 @@ brief justification.
 
 Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
 Scoring criteria:
 
-5/5 exemplary → maximum efficiency, minimal unnecessary movement, smooth transitions, optimal instrument handling.
+5/5 exemplary → maximum efficiency, minimal unnecessary movement, smooth transitions, optimal instrument handling. RARE - only for exceptional technique that could be used as a teaching example.
 
-4/5 proficient → mostly efficient, occasional minor inefficiencies, generally smooth workflow.
+4/5 proficient → mostly efficient, occasional minor inefficiencies, generally smooth workflow. Good performance with room for minor improvement.
 
-3/5 competent → generally organized, some unnecessary movements, acceptable workflow with minor delays.
+3/5 competent → generally organized, some unnecessary movements, acceptable workflow with minor delays. Adequate performance, typical for learning students.
 
-2/5 substandard → frequent inefficiencies, noticeable unnecessary movements, workflow interruptions.
+2/5 substandard → frequent inefficiencies, significant unnecessary movements, workflow interruptions. Below average performance requiring improvement.
 
-1/5 poor → disorganized movements, excessive unnecessary motion, poor instrument handling, significant delays.
+1/5 poor → disorganized movements, excessive unnecessary motion, poor instrument handling, significant delays. RARE - only for truly poor technique that shows fundamental misunderstanding.
+
+Focus on:
+
+efficiency of movements,
+
+unnecessary motion frequency,
+
+workflow smoothness,
+
+instrument handling,
+
+across the entire procedure.
+
+Keep the justification neutral, factual, and concise.
+Describe the movement patterns and efficiency characteristics.
+"""
+                elif idx == 0 and suture_type == "subcuticular":
+                    # Special prompt for dermal layer bites
+                    prompt = f"""
+You are an expert surgical educator assessing a subcuticular suture.
+
+Assess only this rubric point:
+
+1) Runs the suture, placing appropriate bites into the dermal layer
+
+Print:
+
+rubric point number and text,
+
+score as x/5 plus rating label (e.g., "3/5 competent"),
+
+brief justification.
+
+Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
+
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
+CRITICAL: Focus on actual technical errors, not technique preferences. Acceptable variations in bite size and spacing should not be penalized.
+
+Scoring criteria:
+
+5/5 exemplary → consistent, appropriate dermal bites, uniform depth and spacing. RARE - only for exceptional technique that could be used as a teaching example.
+
+4/5 proficient → mostly consistent bites, minor variations in size/spacing. Good performance with room for minor improvement.
+
+3/5 competent → generally appropriate bites, some variation in size/spacing. Adequate performance, typical for learning students.
+
+2/5 substandard → inconsistent bite sizes, poor depth control, significant spacing issues. Below average performance requiring improvement.
+
+1/5 poor → major technical errors: locked suture, buttonholing, excessive bite variation. RARE - only for truly poor technique that shows fundamental misunderstanding.
+
+Focus on:
+
+bite consistency and depth,
+
+presence of technical errors (locked suture, buttonholing),
+
+overall suture line quality,
+
+across the entire incision.
+
+Keep the justification neutral, factual, and concise.
+Describe the bite patterns and identify any technical errors.
+"""
+                elif idx == 1 and suture_type == "subcuticular":
+                    # Special prompt for direct entry across from exit
+                    prompt = f"""
+You are an expert surgical educator assessing a subcuticular suture.
+
+Assess only this rubric point:
+
+2) Enters the dermal layer directly across from exit site
+
+Print:
+
+rubric point number and text,
+
+score as x/5 plus rating label (e.g., "3/5 competent"),
+
+brief justification.
+
+Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
+
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
+CRITICAL: Focus on actual technical errors, not minor variations in entry/exit positioning.
+
+Scoring criteria:
+
+5/5 exemplary → consistently enters directly across from exit, optimal positioning. RARE - only for exceptional technique that could be used as a teaching example.
+
+4/5 proficient → mostly direct entry across from exit, minor positioning variations. Good performance with room for minor improvement.
+
+3/5 competent → generally enters across from exit, some positioning variation. Adequate performance, typical for learning students.
+
+2/5 substandard → frequent poor positioning, significant deviation from direct entry. Below average performance requiring improvement.
+
+1/5 poor → major positioning errors, poor entry/exit alignment. RARE - only for truly poor technique that shows fundamental misunderstanding.
+
+Focus on:
+
+entry/exit positioning accuracy,
+
+consistency of direct entry across from exit,
+
+across all bites in the suture line.
+
+Keep the justification neutral, factual, and concise.
+Describe the entry/exit positioning patterns.
+"""
+                elif idx == 2 and suture_type == "subcuticular":
+                    # Special prompt for avoiding multiple dermal penetration
+                    prompt = f"""
+You are an expert surgical educator assessing a subcuticular suture.
+
+Assess only this rubric point:
+
+3) Avoids multiple penetration of the dermis
+
+Print:
+
+rubric point number and text,
+
+score as x/5 plus rating label (e.g., "3/5 competent"),
+
+brief justification.
+
+Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
+
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
+CRITICAL: Focus on actual technical errors, not minor adjustments or technique variations.
+
+Scoring criteria:
+
+5/5 exemplary → single, clean dermal penetrations, no multiple passes. RARE - only for exceptional technique that could be used as a teaching example.
+
+4/5 proficient → mostly single penetrations, occasional minor adjustments. Good performance with room for minor improvement.
+
+3/5 competent → generally single penetrations, some minor adjustments or corrections. Adequate performance, typical for learning students.
+
+2/5 substandard → frequent multiple penetrations, poor needle control. Below average performance requiring improvement.
+
+1/5 poor → excessive multiple penetrations, poor needle handling. RARE - only for truly poor technique that shows fundamental misunderstanding.
+
+Focus on:
+
+frequency of multiple dermal penetrations,
+
+needle control and precision,
+
+across all bites in the suture line.
+
+Keep the justification neutral, factual, and concise.
+Describe the penetration patterns and needle control.
+"""
+                elif idx == 4 and suture_type == "subcuticular":
+                    # Special prompt for square knots in subcuticular
+                    prompt = f"""
+You are an expert surgical educator assessing a subcuticular suture.
+
+Assess only this rubric point:
+
+5) Instrument ties with square knots
+
+Print:
+
+rubric point number and text,
+
+score as x/5 plus rating label (e.g., "3/5 competent"),
+
+brief justification.
+
+Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
+
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
+CRITICAL: Be very careful to accurately identify square knots. Do not flag square knots as non-square knots. Focus on actual knot type, not minor variations in technique.
+
+Scoring criteria:
+
+5/5 exemplary → consistently perfect square knots, secure throws, no slippage. RARE - only for exceptional technique that could be used as a teaching example.
+
+4/5 proficient → mostly square knots, occasional minor issues, rare slippage. Good performance with room for minor improvement.
+
+3/5 competent → generally square knots, some variation, occasional slippage or granny knots. Adequate performance, typical for learning students.
+
+2/5 substandard → frequent non-square knots, significant slippage. Below average performance requiring improvement.
+
+1/5 poor → predominantly granny knots or slip knots, frequent failures. RARE - only for truly poor technique that shows fundamental misunderstanding.
+
+Focus on:
+
+knot type (square vs granny vs slip),
+
+knot security,
+
+slippage frequency,
+
+across all knots tied.
+
+Keep the justification neutral, factual, and concise.
+Describe the knot quality and consistency patterns.
+"""
+                elif idx == 6 and suture_type == "subcuticular":
+                    # Special prompt for economy of motion in subcuticular
+                    prompt = f"""
+You are an expert surgical educator assessing a subcuticular suture.
+
+Assess only this rubric point:
+
+7) Economy of time and motion
+
+Print:
+
+rubric point number and text,
+
+score as x/5 plus rating label (e.g., "3/5 competent"),
+
+brief justification.
+
+Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
+
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
+CRITICAL: Do not penalize legitimate technique variations. Needle reloading between bites is an acceptable technique choice, not an error. Focus on actual inefficiencies, not personal technique preferences.
+
+Scoring criteria:
+
+5/5 exemplary → maximum efficiency, minimal unnecessary movement, smooth transitions. RARE - only for exceptional technique that could be used as a teaching example.
+
+4/5 proficient → mostly efficient, occasional minor inefficiencies, generally smooth workflow. Good performance with room for minor improvement.
+
+3/5 competent → generally organized, some unnecessary movements, acceptable workflow. Adequate performance, typical for learning students.
+
+2/5 substandard → frequent inefficiencies, noticeable unnecessary movements, workflow interruptions. Below average performance requiring improvement.
+
+1/5 poor → disorganized movements, excessive unnecessary motion, poor instrument handling. RARE - only for truly poor technique that shows fundamental misunderstanding.
 
 Focus on:
 
@@ -315,6 +561,17 @@ Assess this specific rubric point: {idx+1}) {point_text}
 Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a brief justification for the score.
 
 Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
+
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
+CRITICAL: Distinguish between technique variations (acceptable) and technical errors (unacceptable). Only flag actual mistakes, not personal technique preferences.
+
+Scoring guidance:
+- 5/5 exemplary: RARE - only for exceptional technique that could be used as a teaching example
+- 4/5 proficient: Good performance with room for minor improvement
+- 3/5 competent: Adequate performance, typical for learning students
+- 2/5 substandard: Below average performance requiring improvement
+- 1/5 poor: RARE - only for truly poor technique that shows fundamental misunderstanding
 
 Keep the justification brief and descriptive. Use neutral, objective language. Describe what is observed without superlatives or heavily inflected language. Simply state the technique characteristics and any issues noted.
 
@@ -347,30 +604,30 @@ brief justification.
 
 Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
 Scoring criteria:
 
-5/5 exemplary → perfect skin approximation, no gaping, no puckering, edges just touching without compression.
+5/5 exemplary → excellent skin edge approximation, minimal visible gaping or puckering. RARE - only for exceptional technique that could be used as a teaching example.
 
-4/5 proficient → excellent approximation, minimal gaping or puckering, appropriate tension throughout.
+4/5 proficient → good approximation, minor visible gaping or puckering. Good performance with room for minor improvement.
 
-3/5 competent → generally good approximation, some minor gaping or puckering, mostly appropriate tension.
+3/5 competent → generally adequate approximation, some visible gaping or puckering. Adequate performance, typical for learning students.
 
-2/5 substandard → poor approximation, significant gaping or puckering, inappropriate tension.
+2/5 substandard → poor approximation, significant gaping or puckering. Below average performance requiring improvement.
 
-1/5 poor → very poor approximation, excessive gaping or puckering, poor tension control.
+1/5 poor → very poor approximation, excessive gaping or puckering. RARE - only for truly poor technique that shows fundamental misunderstanding.
 
 Focus on:
 
-skin edge approximation quality,
+visible skin edge approximation quality,
 
-presence of gaping or puckering,
-
-tension appropriateness,
+presence of obvious gaping or puckering,
 
 across all visible sutures.
 
 Keep the justification neutral, factual, and concise.
-Describe the approximation patterns and tension characteristics.
+Describe the visible approximation patterns.
 """
                 elif idx == 4 and suture_type in ["simple_interrupted", "vertical_mattress"]:
                     # Special prompt for suture spacing
@@ -391,17 +648,19 @@ brief justification.
 
 Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
 Scoring criteria:
 
-5/5 exemplary → consistently 0.5-1.0 cm spacing, uniform distribution, no gaps or crowding.
+5/5 exemplary → consistently 0.5-1.0 cm spacing, uniform distribution, no gaps or crowding. RARE - only for exceptional technique that could be used as a teaching example.
 
-4/5 proficient → mostly 0.5-1.0 cm spacing, occasional minor variation (±0.2 cm), generally uniform.
+4/5 proficient → mostly 0.5-1.0 cm spacing, occasional minor variation (±0.2 cm), generally uniform. Good performance with room for minor improvement.
 
-3/5 competent → generally 0.5-1.0 cm spacing, some variation (±0.3 cm), mostly appropriate distribution.
+3/5 competent → generally 0.5-1.0 cm spacing, some variation (±0.3 cm), mostly appropriate distribution. Adequate performance, typical for learning students.
 
-2/5 substandard → frequent spacing outside 0.5-1.0 cm range, noticeable gaps or crowding.
+2/5 substandard → frequent spacing outside 0.5-1.0 cm range, noticeable gaps or crowding. Below average performance requiring improvement.
 
-1/5 poor → predominantly incorrect spacing, excessive gaps or crowding, poor distribution.
+1/5 poor → predominantly incorrect spacing, excessive gaps or crowding, poor distribution. RARE - only for truly poor technique that shows fundamental misunderstanding.
 
 Focus on:
 
@@ -435,17 +694,19 @@ brief justification.
 
 Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
 Scoring criteria:
 
-5/5 exemplary → perfect eversion, skin edges rolled outward, no inversion, optimal healing position.
+5/5 exemplary → perfect eversion, skin edges rolled outward, no inversion, optimal healing position. RARE - only for exceptional technique that could be used as a teaching example.
 
-4/5 proficient → excellent eversion, mostly rolled outward, minimal inversion, very good healing position.
+4/5 proficient → excellent eversion, mostly rolled outward, minimal inversion, very good healing position. Good performance with room for minor improvement.
 
-3/5 competent → generally good eversion, some rolling outward, occasional minor inversion.
+3/5 competent → generally good eversion, some rolling outward, occasional minor inversion. Adequate performance, typical for learning students.
 
-2/5 substandard → poor eversion, frequent inversion, skin edges not in optimal healing position.
+2/5 substandard → poor eversion, frequent inversion, skin edges not in optimal healing position. Below average performance requiring improvement.
 
-1/5 poor → very poor eversion, predominantly inverted edges, poor healing position.
+1/5 poor → very poor eversion, predominantly inverted edges, poor healing position. RARE - only for truly poor technique that shows fundamental misunderstanding.
 
 Focus on:
 
@@ -470,6 +731,15 @@ Assess this specific rubric point: {idx+1}) {point_text}
 Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a brief justification for the score.
 
 Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
+
+IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
+
+Scoring guidance:
+- 5/5 exemplary: RARE - only for exceptional technique that could be used as a teaching example
+- 4/5 proficient: Good performance with room for minor improvement
+- 3/5 competent: Adequate performance, typical for learning students
+- 2/5 substandard: Below average performance requiring improvement
+- 1/5 poor: RARE - only for truly poor technique that shows fundamental misunderstanding
 
 Keep the justification brief and descriptive. Use neutral, objective language. Describe what is observed without superlatives or heavily inflected language. Simply state the technique characteristics and any issues noted.
 
@@ -525,6 +795,10 @@ Do not add any extra labels or commentary.
             label = rating_labels.get(final_score, "")
             final_score_text = f"Final Score: {final_score}/5 {label}"
         else:
+            # Set default values when we don't have enough scores
+            final_score = 0
+            label = "ERROR"
+            rubric_scores = []
             final_score_text = "Final Score: ERROR - Could not calculate"
         
         # Generate summative comment programmatically based on individual assessments
@@ -760,6 +1034,9 @@ Write a summative comment that:
 - Includes specific correction strategies and techniques
 - Encourages continued development
 - Uses professional but accessible language
+- Prioritizes technique, knot tying, needle handling, and instrument use over tension assessment
+- Focuses on actual technical errors, not technique preferences or variations
+- Provides appropriate-level feedback for PGY-1 learners (avoid advanced techniques they haven't mastered yet)
 
 The individual rubric points provide brief score justifications. This summative comment should provide the detailed analysis, correction advice, and actionable guidance.
 
