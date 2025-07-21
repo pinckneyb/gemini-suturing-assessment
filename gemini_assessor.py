@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from pathlib import Path
 from typing import Dict, List, Any
 import base64
@@ -14,7 +15,16 @@ class SuturingAssessor:
         self.types = types
         # Use gemini-2.5-pro for video analysis
         self.model = 'models/gemini-2.5-pro'
-        
+
+        # Load rubric definitions from JSON config
+        rubric_path = os.path.join(os.path.dirname(__file__), 'rubric_definitions_filled.JSON')
+        try:
+            with open(rubric_path, 'r', encoding='utf-8') as f:
+                self.rubric_definitions = json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load rubric definitions: {e}")
+            self.rubric_definitions = {}
+
         # Suture types and their assessment criteria
         self.suture_types = {
             "simple_interrupted": "Simple Interrupted Suture",
@@ -77,494 +87,113 @@ class SuturingAssessor:
     
 
 
-    def assess_vop(self, video_path: str, final_image_path: str, ref_image_path: str | None, suture_type: str) -> dict:
-        import json
-        import os
-        # Enforce suture type must be known
-        if not suture_type or suture_type not in ["simple_interrupted", "vertical_mattress", "subcuticular"]:
-            return {"error": "Suture type is unknown or not supported. Please select a valid suture type before assessment."}
+    def assess_vop(self, video_path: str, final_image_path: str, ref_image_path: str | None, suture_type: str, progress_callback=None) -> dict:
+        """Assess video using VoP (Verification of Proficiency) criteria with real-time progress updates."""
         
-        # Map rubric points to VIDEO or STILL for each suture type
-        # Simple interrupted and vertical mattress:
-        # 1. Passes needle perpendicular to skin on both sides - VIDEO
-        # 2. Avoids multiple forceps grasps of skin - VIDEO  
-        # 3. Instrument ties with square knots - VIDEO
-        # 4. Approximates skin with appropriate tension - STILL
-        # 5. Places sutures 0.5–1.0 cm apart - STILL
-        # 6. Eversion of the skin edges - STILL
-        # 7. Economy of time and motion - VIDEO
-        #
-        # Subcuticular (different criteria):
-        # 1. Runs the suture, placing appropriate bites into dermal layer - VIDEO
-        # 2. Enters the dermal layer directly across from exit site - VIDEO
-        # 3. Avoids multiple penetration of the dermis - VIDEO
-        # 4. Avoids multiple forceps grasps of skin - VIDEO
-        # 5. Instrument ties with square knots - VIDEO
-        # 6. Approximates skin with appropriate tension - STILL
-        # 7. Economy of time and motion - VIDEO
+        # Define rubric points based on suture type
+        rubric_points = {
+            "simple_interrupted": [
+                "1) Passes needle perpendicular to skin on both sides of skin",
+                "2) Avoids multiple forceps grasps of skin", 
+                "3) Instrument ties with square knots",
+                "4) Approximates skin with appropriate tension",
+                "5) Places sutures 0.5 - 1.0 centimeters apart",
+                "6) Eversion of the skin edges",
+                "7) Economy of time and motion"
+            ],
+            "vertical_mattress": [
+                "1) Passes needle perpendicular to skin on both sides of skin",
+                "2) Avoids multiple forceps grasps of skin",
+                "3) Instrument ties with square knots", 
+                "4) Approximates skin with appropriate tension",
+                "5) Places sutures 0.5 - 1.0 centimeters apart",
+                "6) Eversion of the skin edges",
+                "7) Economy of time and motion"
+            ],
+            "subcuticular": [
+                "1) Runs the suture, placing appropriate bites into the dermal layer",
+                "2) Enters the dermal layer directly across from exit site",
+                "3) Avoids multiple penetrations of the dermis",
+                "4) Avoids multiple forceps grasps of skin",
+                "5) Instrument ties with square knots",
+                "6) Approximates skin with appropriate tension", 
+                "7) Economy of time and motion"
+            ]
+        }
+        
+        # Define which rubric points are assessed from video vs still image
         rubric_map = {
             "simple_interrupted": ["VIDEO", "VIDEO", "VIDEO", "STILL", "STILL", "STILL", "VIDEO"],
             "vertical_mattress": ["VIDEO", "VIDEO", "VIDEO", "STILL", "STILL", "STILL", "VIDEO"],
             "subcuticular": ["VIDEO", "VIDEO", "VIDEO", "VIDEO", "VIDEO", "STILL", "VIDEO"]
         }
         
-        vop_files = {
-            "simple_interrupted": "simple_interrupted_VoP_assessment.txt",
-            "vertical_mattress": "vertical_mattress_VoP_assessment.txt",
-            "subcuticular": "subcuticular_VoP_assessment.txt"
+        # Rating labels
+        rating_labels = {
+            1: "poor",
+            2: "substandard", 
+            3: "competent",
+            4: "proficient",
+            5: "exemplary"
         }
-        vop_path = vop_files.get(suture_type)
-        if not vop_path or not os.path.exists(vop_path):
-            raise FileNotFoundError(f"VoP rubric for {suture_type} not found.")
-        with open(vop_path, 'r', encoding='utf-8') as f:
-            vop_text = f.read()
-        import re
-        rubric_points = re.findall(r"\d+\)\s.*", vop_text)
         
-        # Prepare results
+        # Process all prompts sequentially with progress updates
         results = []
-        rating_labels = {1: 'poor', 2: 'substandard', 3: 'competent', 4: 'proficient', 5: 'exemplary'}
-        
-        # For each rubric point 1-7, assess using the correct modality
-        for idx, point in enumerate(rubric_points[:7]):
+        rubric_defs = self.rubric_definitions.get(suture_type, [])
+        for i, point in enumerate(rubric_points[suture_type][:7]):
+            if progress_callback:
+                progress_callback(f"Assessing rubric point {i+1}/7: {point.split(')')[1].strip()}")
+            
             # Strip leading number/parenthesis from rubric point
             point_text = re.sub(r'^\d+\)\s*', '', point).strip()
-            mode = rubric_map[suture_type][idx]
+            mode = rubric_map[suture_type][i]
             
+            # Build definition string if available
+            defn = ""
+            if i < len(rubric_defs) and isinstance(rubric_defs[i], dict):
+                d = rubric_defs[i]
+                # For eversion, use new definition (user will have filled in)
+                defn_parts = []
+                if d.get("what_you_assess"):
+                    defn_parts.append(f"What you assess: {d['what_you_assess']}")
+                if d.get("ideal_result"):
+                    defn_parts.append(f"Ideal result: {d['ideal_result']}")
+                defn = "\n".join(defn_parts)
+            # Compose prompt
+            tension_note = "NOTE: Approximates skin with appropriate tension is difficult to judge on these practice pads and so considerable latitude should be shown on those assessments."
+            # Special prompt for subcuticular point 5 (spacing)
+            spacing_note = """
+NOTE for subcuticular spacing: Assess spacing based on surface clues. Examine for contour irregularities (e.g., bunching, dimpling), and whether skin edges are pulled unevenly or smoothly approximated. Deduct for obvious asymmetry, puckering, or irregular tension. Do NOT penalize for invisible bite spacing if the surface appears clean and symmetric."""
+            if suture_type == "subcuticular" and i == 4:
+                if defn:
+                    prompt_addition = f"\n{defn}\n{spacing_note}"
+                else:
+                    prompt_addition = f"\n{spacing_note}"
+            elif 'tension' in point_text.lower():
+                if defn:
+                    prompt_addition = f"\n{defn}\n{tension_note}"
+                else:
+                    prompt_addition = f"\n{tension_note}"
+            else:
+                if defn:
+                    prompt_addition = f"\n{defn}"
+                else:
+                    prompt_addition = ""
+
             if mode == "VIDEO":
                 # Assess video-based criteria
-                if idx == 0 and suture_type in ["simple_interrupted", "vertical_mattress"]:
-                    # Special prompt for needle perpendicularity
-                    prompt = f"""
+                prompt = f"""
 You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture.
 
 Assess only this rubric point:
 
-1) Passes needle perpendicular to skin on both sides of skin
+{i+1}) {point_text}{prompt_addition}
 
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-Scoring criteria (angle definitions):
-
-5/5 exemplary → consistently within 3° of perpendicular (87–93°) on both entry and exit. EXTREMELY RARE - only for truly exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly within 8° (82–98°), occasional minor deviation. Good performance with room for minor improvement.
-
-3/5 competent → generally within 15° (75–105°), some noticeable deviations. Adequate performance, typical for learning students.
-
-2/5 substandard → frequent deviation beyond 15°. Below average performance requiring improvement.
-
-1/5 poor → predominantly oblique (>20° deviation), few or no perpendicular passes. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-angle of both entry and exit passes,
-
-across all stitches observed (not just one example).
-
-Keep the justification neutral, factual, and concise.
-Describe the angle patterns, mention consistency or inconsistency, and avoid value-laden language.
-"""
-                elif idx == 1 and suture_type in ["simple_interrupted", "vertical_mattress"]:
-                    # Special prompt for forceps grasps
-                    prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture.
-
-Assess only this rubric point:
-
-2) Avoids multiple forceps grasps of skin
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-Scoring criteria:
-
-5/5 exemplary → single, precise forceps grasp per skin edge, no regrasping or repositioning needed. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly single grasps, occasional minor repositioning (1-2 instances per stitch). Good performance with room for minor improvement.
-
-3/5 competent → generally single grasps, some regrasping or repositioning (3-4 instances per stitch). Adequate performance, typical for learning students.
-
-2/5 substandard → frequent multiple grasps, significant repositioning needed (5+ instances per stitch). Below average performance requiring improvement.
-
-1/5 poor → excessive regrasping, multiple attempts per edge, poor tissue handling. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-number of forceps grasps per skin edge,
-
-frequency of regrasping or repositioning,
-
-across all stitches observed.
-
-Keep the justification neutral, factual, and concise.
-Describe the grasping patterns and frequency of adjustments.
-"""
-                elif idx == 2 and suture_type in ["simple_interrupted", "vertical_mattress"]:
-                    # Special prompt for square knots
-                    prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture.
-
-Assess only this rubric point:
-
-3) Instrument ties with square knots
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-Scoring criteria:
-
-5/5 exemplary → consistently perfect square knots, secure throws, no slippage. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly square knots, occasional minor issues, rare slippage. Good performance with room for minor improvement.
-
-3/5 competent → generally square knots, some variation, occasional slippage or granny knots. Adequate performance, typical for learning students.
-
-2/5 substandard → frequent non-square knots, significant slippage. Below average performance requiring improvement.
-
-1/5 poor → predominantly granny knots or slip knots, frequent failures. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-knot type (square vs granny vs slip),
-
-knot security,
-
-slippage frequency,
-
-across all knots tied.
-
-Keep the justification neutral, factual, and concise.
-Describe the knot quality and consistency patterns.
-"""
-                elif idx == 6 and suture_type in ["simple_interrupted", "vertical_mattress"]:
-                    # Special prompt for economy of motion
-                    prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture.
-
-Assess only this rubric point:
-
-7) Economy of time and motion
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-Scoring criteria:
-
-5/5 exemplary → maximum efficiency, minimal unnecessary movement, smooth transitions, optimal instrument handling. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly efficient, occasional minor inefficiencies, generally smooth workflow. Good performance with room for minor improvement.
-
-3/5 competent → generally organized, some unnecessary movements, acceptable workflow with minor delays. Adequate performance, typical for learning students.
-
-2/5 substandard → frequent inefficiencies, significant unnecessary movements, workflow interruptions. Below average performance requiring improvement.
-
-1/5 poor → disorganized movements, excessive unnecessary motion, poor instrument handling, significant delays. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-efficiency of movements,
-
-unnecessary motion frequency,
-
-workflow smoothness,
-
-instrument handling,
-
-across the entire procedure.
-
-Keep the justification neutral, factual, and concise.
-Describe the movement patterns and efficiency characteristics.
-"""
-                elif idx == 0 and suture_type == "subcuticular":
-                    # Special prompt for dermal layer bites
-                    prompt = f"""
-You are an expert surgical educator assessing a subcuticular suture.
-
-Assess only this rubric point:
-
-1) Runs the suture, placing appropriate bites into the dermal layer
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-CRITICAL: Focus on actual technical errors, not technique preferences. Acceptable variations in bite size and spacing should not be penalized.
-
-Scoring criteria:
-
-5/5 exemplary → consistent, appropriate dermal bites, uniform depth and spacing. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly consistent bites, minor variations in size/spacing. Good performance with room for minor improvement.
-
-3/5 competent → generally appropriate bites, some variation in size/spacing. Adequate performance, typical for learning students.
-
-2/5 substandard → inconsistent bite sizes, poor depth control, significant spacing issues. Below average performance requiring improvement.
-
-1/5 poor → major technical errors: locked suture, buttonholing, excessive bite variation. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-bite consistency and depth,
-
-presence of technical errors (locked suture, buttonholing),
-
-overall suture line quality,
-
-across the entire incision.
-
-Keep the justification neutral, factual, and concise.
-Describe the bite patterns and identify any technical errors.
-"""
-                elif idx == 1 and suture_type == "subcuticular":
-                    # Special prompt for direct entry across from exit
-                    prompt = f"""
-You are an expert surgical educator assessing a subcuticular suture.
-
-Assess only this rubric point:
-
-2) Enters the dermal layer directly across from exit site
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-CRITICAL: Focus on actual technical errors, not minor variations in entry/exit positioning.
-
-Scoring criteria:
-
-5/5 exemplary → consistently enters directly across from exit, optimal positioning. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly direct entry across from exit, minor positioning variations. Good performance with room for minor improvement.
-
-3/5 competent → generally enters across from exit, some positioning variation. Adequate performance, typical for learning students.
-
-2/5 substandard → frequent poor positioning, significant deviation from direct entry. Below average performance requiring improvement.
-
-1/5 poor → major positioning errors, poor entry/exit alignment. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-entry/exit positioning accuracy,
-
-consistency of direct entry across from exit,
-
-across all bites in the suture line.
-
-Keep the justification neutral, factual, and concise.
-Describe the entry/exit positioning patterns.
-"""
-                elif idx == 2 and suture_type == "subcuticular":
-                    # Special prompt for avoiding multiple dermal penetration
-                    prompt = f"""
-You are an expert surgical educator assessing a subcuticular suture.
-
-Assess only this rubric point:
-
-3) Avoids multiple penetration of the dermis
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-CRITICAL: Focus on actual technical errors, not minor adjustments or technique variations.
-
-Scoring criteria:
-
-5/5 exemplary → single, clean dermal penetrations, no multiple passes. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly single penetrations, occasional minor adjustments. Good performance with room for minor improvement.
-
-3/5 competent → generally single penetrations, some minor adjustments or corrections. Adequate performance, typical for learning students.
-
-2/5 substandard → frequent multiple penetrations, poor needle control. Below average performance requiring improvement.
-
-1/5 poor → excessive multiple penetrations, poor needle handling. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-frequency of multiple dermal penetrations,
-
-needle control and precision,
-
-across all bites in the suture line.
-
-Keep the justification neutral, factual, and concise.
-Describe the penetration patterns and needle control.
-"""
-                elif idx == 4 and suture_type == "subcuticular":
-                    # Special prompt for square knots in subcuticular
-                    prompt = f"""
-You are an expert surgical educator assessing a subcuticular suture.
-
-Assess only this rubric point:
-
-5) Instrument ties with square knots
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-CRITICAL: Be very careful to accurately identify square knots. Do not flag square knots as non-square knots. Focus on actual knot type, not minor variations in technique.
-
-Scoring criteria:
-
-5/5 exemplary → consistently perfect square knots, secure throws, no slippage. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly square knots, occasional minor issues, rare slippage. Good performance with room for minor improvement.
-
-3/5 competent → generally square knots, some variation, occasional slippage or granny knots. Adequate performance, typical for learning students.
-
-2/5 substandard → frequent non-square knots, significant slippage. Below average performance requiring improvement.
-
-1/5 poor → predominantly granny knots or slip knots, frequent failures. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-knot type (square vs granny vs slip),
-
-knot security,
-
-slippage frequency,
-
-across all knots tied.
-
-Keep the justification neutral, factual, and concise.
-Describe the knot quality and consistency patterns.
-"""
-                elif idx == 6 and suture_type == "subcuticular":
-                    # Special prompt for economy of motion in subcuticular
-                    prompt = f"""
-You are an expert surgical educator assessing a subcuticular suture.
-
-Assess only this rubric point:
-
-7) Economy of time and motion
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-CRITICAL: Do not penalize legitimate technique variations. Needle reloading between bites is an acceptable technique choice, not an error. Focus on actual inefficiencies, not personal technique preferences.
-
-Scoring criteria:
-
-5/5 exemplary → maximum efficiency, minimal unnecessary movement, smooth transitions. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly efficient, occasional minor inefficiencies, generally smooth workflow. Good performance with room for minor improvement.
-
-3/5 competent → generally organized, some unnecessary movements, acceptable workflow. Adequate performance, typical for learning students.
-
-2/5 substandard → frequent inefficiencies, noticeable unnecessary movements, workflow interruptions. Below average performance requiring improvement.
-
-1/5 poor → disorganized movements, excessive unnecessary motion, poor instrument handling. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-efficiency of movements,
-
-unnecessary motion frequency,
-
-workflow smoothness,
-
-instrument handling,
-
-across the entire procedure.
-
-Keep the justification neutral, factual, and concise.
-Describe the movement patterns and efficiency characteristics.
-"""
-                else:
-                    # Standard prompt for other rubric points
-                    prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
-
-Assess this specific rubric point: {idx+1}) {point_text}
-
-Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a brief justification for the score.
+Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a brief description of what was observed.
 
 Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
 IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-CRITICAL: Distinguish between technique variations (acceptable) and technical errors (unacceptable). Only flag actual mistakes, not personal technique preferences.
 
 Scoring guidance:
 - 5/5 exemplary: RARE - only for exceptional technique that could be used as a teaching example
@@ -573,7 +202,7 @@ Scoring guidance:
 - 2/5 substandard: Below average performance requiring improvement
 - 1/5 poor: RARE - only for truly poor technique that shows fundamental misunderstanding
 
-Keep the justification brief and descriptive. Use neutral, objective language. Describe what is observed without superlatives or heavily inflected language. Simply state the technique characteristics and any issues noted.
+Keep the description brief and factual. Use neutral, objective language. Describe what is observed without superlatives or heavily inflected language. Simply state the technique characteristics and any issues noted.
 
 Do not add any extra labels or commentary.
 """
@@ -584,151 +213,52 @@ Do not add any extra labels or commentary.
                     self.types.Part.from_text(text=prompt)
                 ])
             else:  # STILL
-                # Assess still image-based criteria (no reference image comparison)
-                if idx == 3 and suture_type in ["simple_interrupted", "vertical_mattress"]:
-                    # Special prompt for skin tension
+                # Assess still image-based criteria with specialized prompts for tension and eversion
+                if "tension" in point_text.lower():
+                    # Specialized, more lenient prompt for tension assessment
                     prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture.
+You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
-Assess only this rubric point:
+Assess this specific rubric point: {i+1}) {point_text}{prompt_addition}
 
-4) Approximates skin with appropriate tension
+Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a brief description of what was observed.
 
-Print:
+Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
-rubric point number and text,
+IMPORTANT: Be very lenient on tension assessment for PGY-1 learners. Minor puckering or slight blanching is normal and acceptable.
 
-score as x/5 plus rating label (e.g., "3/5 competent"),
+Scoring guidance for tension:
+- 5/5 exemplary: RARE - perfect tension with no visible puckering or blanching
+- 4/5 proficient: Good tension with minimal puckering or blanching
+- 3/5 competent: Adequate tension, some minor puckering or blanching is acceptable and normal
+- 2/5 substandard: Excessive tension causing significant puckering or blanching
+- 1/5 poor: RARE - extreme tension causing tissue damage or ischemia
 
-brief justification.
+CRITICAL: Only score 2/5 or lower if there is clearly excessive tension causing significant tissue distortion. Minor puckering or slight blanching should be scored 3/5 or higher.
 
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-Scoring criteria:
-
-5/5 exemplary → excellent skin edge approximation, minimal visible gaping or puckering. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → good approximation, minor visible gaping or puckering. Good performance with room for minor improvement.
-
-3/5 competent → generally adequate approximation, some visible gaping or puckering. Adequate performance, typical for learning students.
-
-2/5 substandard → poor approximation, significant gaping or puckering. Below average performance requiring improvement.
-
-1/5 poor → very poor approximation, excessive gaping or puckering. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-visible skin edge approximation quality,
-
-presence of obvious gaping or puckering,
-
-across all visible sutures.
-
-Keep the justification neutral, factual, and concise.
-Describe the visible approximation patterns.
+Keep the description brief and factual. Use neutral, objective language.
 """
-                elif idx == 4 and suture_type in ["simple_interrupted", "vertical_mattress"]:
-                    # Special prompt for suture spacing
+                elif "eversion" in point_text.lower():
+                    # Use new definition for eversion (user will have filled in)
                     prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture.
+You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
-Assess only this rubric point:
+Assess this specific rubric point: {i+1}) {point_text}{prompt_addition}
 
-5) Places sutures 0.5 - 1.0 centimeters apart
+Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a brief description of what was observed.
 
-Print:
+Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-Scoring criteria:
-
-5/5 exemplary → consistently 0.5-1.0 cm spacing, uniform distribution, no gaps or crowding. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → mostly 0.5-1.0 cm spacing, occasional minor variation (±0.2 cm), generally uniform. Good performance with room for minor improvement.
-
-3/5 competent → generally 0.5-1.0 cm spacing, some variation (±0.3 cm), mostly appropriate distribution. Adequate performance, typical for learning students.
-
-2/5 substandard → frequent spacing outside 0.5-1.0 cm range, noticeable gaps or crowding. Below average performance requiring improvement.
-
-1/5 poor → predominantly incorrect spacing, excessive gaps or crowding, poor distribution. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-distance between adjacent sutures,
-
-consistency of spacing,
-
-presence of gaps or crowding,
-
-across all visible sutures.
-
-Keep the justification neutral, factual, and concise.
-Describe the spacing patterns and distribution characteristics.
-"""
-                elif idx == 5 and suture_type in ["simple_interrupted", "vertical_mattress"]:
-                    # Special prompt for skin edge eversion
-                    prompt = f"""
-You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture.
-
-Assess only this rubric point:
-
-6) Eversion of the skin edges
-
-Print:
-
-rubric point number and text,
-
-score as x/5 plus rating label (e.g., "3/5 competent"),
-
-brief justification.
-
-Use rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
-
-IMPORTANT: Scores 2-4 are the normal range. Reserve 1/5 for truly disastrous performance and 5/5 for exceptional work that could serve as a teaching example.
-
-Scoring criteria:
-
-5/5 exemplary → perfect eversion, skin edges rolled outward, no inversion, optimal healing position. RARE - only for exceptional technique that could be used as a teaching example.
-
-4/5 proficient → excellent eversion, mostly rolled outward, minimal inversion, very good healing position. Good performance with room for minor improvement.
-
-3/5 competent → generally good eversion, some rolling outward, occasional minor inversion. Adequate performance, typical for learning students.
-
-2/5 substandard → poor eversion, frequent inversion, skin edges not in optimal healing position. Below average performance requiring improvement.
-
-1/5 poor → very poor eversion, predominantly inverted edges, poor healing position. RARE - only for truly poor technique that shows fundamental misunderstanding.
-
-Focus on:
-
-skin edge orientation (everted vs inverted),
-
-degree of eversion,
-
-consistency across sutures,
-
-healing position quality.
-
-Keep the justification neutral, factual, and concise.
-Describe the eversion patterns and edge orientation characteristics.
+Keep the description brief and factual. Use neutral, objective language.
 """
                 else:
                     # Standard prompt for other still image criteria
                     prompt = f"""
 You are an expert surgical educator assessing a {suture_type.replace('_', ' ')} suture. 
 
-Assess this specific rubric point: {idx+1}) {point_text}
+Assess this specific rubric point: {i+1}) {point_text}{prompt_addition}
 
-Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a brief justification for the score.
+Print the rubric point number and text, then the score as x/5 plus the rating label (e.g., '3/5 competent'), then a brief description of what was observed.
 
 Use these rating labels: 1/5 poor, 2/5 substandard, 3/5 competent, 4/5 proficient, 5/5 exemplary.
 
@@ -741,7 +271,7 @@ Scoring guidance:
 - 2/5 substandard: Below average performance requiring improvement
 - 1/5 poor: RARE - only for truly poor technique that shows fundamental misunderstanding
 
-Keep the justification brief and descriptive. Use neutral, objective language. Describe what is observed without superlatives or heavily inflected language. Simply state the technique characteristics and any issues noted.
+Keep the description brief and factual. Use neutral, objective language. Describe what is observed without superlatives or heavily inflected language. Simply state the technique characteristics and any issues noted.
 
 Do not add any extra labels or commentary.
 """
@@ -754,29 +284,43 @@ Do not add any extra labels or commentary.
             
             response = self.client.models.generate_content(
                 model=self.model,
-                contents=[content]
+                contents=[content],
+                config={"temperature": 0.1}
             )
             response_text = getattr(response, 'text', str(response))
             results.append(response_text.strip())
         
         # Calculate final score as simple average of all 7 rubric scores
-        import re
         rubric_scores = []
         rubric_justifications = []
         original_scores = []  # Store original AI scores for comparison
         
         for r in results[:7]:
+            # Only keep the first valid score and its associated comment
             match = re.search(r"(\d)/(5)\s+(poor|substandard|competent|proficient|exemplary)", r, re.IGNORECASE)
             if match:
                 original_score = int(match.group(1))
                 original_scores.append(original_score)
-                # Extract the justification (everything after the score line)
+                # Extract the description (everything after the first valid score line)
                 lines = r.strip().split('\n')
-                if len(lines) >= 3:
-                    justification = lines[2].strip()
-                    rubric_justifications.append(justification)
-                else:
-                    rubric_justifications.append("No justification provided")
+                # Find the first valid score line
+                score_line_idx = None
+                for idx, line in enumerate(lines):
+                    if re.match(r"^\d/5 ", line):
+                        score_line_idx = idx
+                        break
+                # The comment is the next non-empty line after the score line
+                description = "No description provided"
+                if score_line_idx is not None:
+                    for line in lines[score_line_idx+1:]:
+                        if line.strip():
+                            description = line.strip()
+                            break
+                rubric_justifications.append(description)
+            else:
+                # If we can't find a score, add a default
+                original_scores.append(3)  # Default to competent
+                rubric_justifications.append("Score parsing error - default description")
         
         if len(original_scores) == 7:
             # Enforce distribution curve on the 7 scores
@@ -809,20 +353,31 @@ Do not add any extra labels or commentary.
         # Update results to show distribution-enforced scores
         updated_results = []
         for i, (original_result, adjusted_score) in enumerate(zip(results[:7], rubric_scores)):
-            # Extract the rubric point text and justification
+            # Extract the rubric point text and description
             lines = original_result.strip().split('\n')
-            if len(lines) >= 3:
+            if len(lines) >= 1:
                 rubric_point = lines[0].strip()
-                justification = lines[2].strip()
                 
                 # Get rating label for adjusted score
                 adjusted_label = rating_labels.get(adjusted_score, "")
                 
+                # Try to find the description
+                description = "No description provided"
+                if len(lines) >= 3:
+                    description = lines[2].strip()
+                    # If the third line is empty, look for the next non-empty line
+                    if not description and len(lines) > 3:
+                        for line in lines[3:]:
+                            if line.strip():
+                                description = line.strip()
+                                break
+                
                 # Format with distribution-enforced score
-                updated_result = f"{rubric_point}\n{adjusted_score}/5 {adjusted_label}\n{justification}"
+                updated_result = f"{rubric_point}\n{adjusted_score}/5 {adjusted_label}\n{description}"
                 updated_results.append(updated_result)
             else:
-                updated_results.append(original_result)
+                # Fallback for malformed results
+                updated_results.append(f"Rubric point {i+1}\n{adjusted_score}/5 {rating_labels.get(adjusted_score, '')}\nNo description available")
         
         # Combine all results into a single formatted string
         header = f"SUTURING ASSESSMENT RESULTS\nVideo File: {os.path.basename(video_path)}\nSuture Type: {suture_type.replace('_', ' ').title()}\n{'='*50}\n\n"
@@ -1049,7 +604,8 @@ Start with "Summative Comment:" and write a single flowing paragraph.
             ])
             response = self.client.models.generate_content(
                 model=self.model,
-                contents=[content]
+                contents=[content],
+                config={"temperature": 0.1}
             )
             response_text = getattr(response, 'text', str(response))
             return response_text.strip()
@@ -1070,6 +626,7 @@ Start with "Summative Comment:" and write a single flowing paragraph.
 from google import genai
 from google.genai import types
 import os
+import re
 
 def wait_for_file_active(client, uploaded_file, timeout=120, poll_interval=2):
     """Wait until the uploaded file is ACTIVE or timeout is reached."""

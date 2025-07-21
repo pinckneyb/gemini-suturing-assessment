@@ -1,0 +1,114 @@
+{
+  "simple_interrupted": [
+    {
+      "rubric": "Passes needle perpendicular to skin on both sides of skin",
+      "what_you_assess": "Are the needle passes perpendicular (~90°) to the skin surface on entry and exit of each bite?",
+      "ideal_result": "Needle driven at right angles through both skin edges; entry and exit symmetric, minimal shear trauma."
+    },
+    {
+      "rubric": "Avoids multiple forceps grasps of skin",
+      "what_you_assess": "Does the operator handle the skin gently with minimal precise grasps?",
+      "ideal_result": "Single, stable dermal grasp per edge; no regrasping or sliding; no visible tissue damage."
+    },
+    {
+      "rubric": "Instrument ties with square knots",
+      "what_you_assess": "Are knots tied using proper square technique with alternating throws, lying flat and secure?",
+      "ideal_result": "Flat square knots; alternating direction; no granny knots or slippage."
+    },
+    {
+      "rubric": "Approximates skin with appropriate tension",
+      "what_you_assess": "Do sutures bring wound edges together evenly without excessive tightness or gapping?",
+      "ideal_result": "Edges just touch—no blanching, puckering, or gaps; consistent tension."
+    },
+    {
+      "rubric": "Places sutures 0.5 - 1.0 centimeters apart",
+      "what_you_assess": "Are sutures spaced evenly within the recommended interval?",
+      "ideal_result": "Uniform 0.5–1 cm spacing; no crowding or wide gaps."
+    },
+    {
+      "rubric": "Eversion of the skin edges",
+      "what_you_assess": "Are skin edges at least flat (slight eversion acceptable) without inversion?",
+      "ideal_result": "Flat or slight eversion; no inversion; epidermal margins align flush."
+    },
+    {
+      "rubric": "Economy of time and motion",
+      "what_you_assess": "Is the workflow smooth with minimal unnecessary movements?",
+      "ideal_result": "Fluid sequence; minimal regripping; organized instrument handling."
+    }
+  ],
+  "vertical_mattress": [
+    {
+      "rubric": "Passes needle perpendicular to skin on both sides of skin",
+      "what_you_assess": "Are both deep (far‑far) and superficial (near‑near) passes perpendicular to the skin surface?",
+      "ideal_result": "Symmetric deep and superficial bites at ~90° on entry and exit."
+    },
+    {
+      "rubric": "Avoids multiple forceps grasps of skin",
+      "what_you_assess": "Is tissue handled gently with a single precise grasp for each pass?",
+      "ideal_result": "One dermal grasp per edge; no crushing or repeated pinches."
+    },
+    {
+      "rubric": "Instrument ties with square knots",
+      "what_you_assess": "Are square knots used to secure both loops without slippage?",
+      "ideal_result": "Alternating flat throws securing loops; knot sits flush."
+    },
+    {
+      "rubric": "Approximates skin with appropriate tension",
+      "what_you_assess": "Do sutures distribute tension across deep dermis while superficial edges meet without puckering?",
+      "ideal_result": "Deep tension firm, superficial loops close epidermis gently; no puckering/gaping."
+    },
+    {
+      "rubric": "Places sutures 0.5 - 1.0 centimeters apart",
+      "what_you_assess": "Are stitches evenly spaced within guideline interval?",
+      "ideal_result": "Consistent 0.5–1 cm spacing along closure."
+    },
+    {
+      "rubric": "Eversion of the skin edges",
+      "what_you_assess": "Do sutures produce uniform outward eversion along incision?",
+      "ideal_result": "Skin edges visibly rolled outward with raised ridge; no flat areas or inversion."
+    },
+    {
+      "rubric": "Economy of time and motion",
+      "what_you_assess": "Is the deep‑superficial sequence performed smoothly without excess movements?",
+      "ideal_result": "Efficient deep then superficial passes, tying and cutting with minimal regripping."
+    }
+  ],
+  "subcuticular": [
+    {
+      "rubric": "Runs the suture, placing appropriate bites into the dermal layer",
+      "what_you_assess": "Does the operator advance horizontally in the dermis, taking consistent dermal bites?",
+      "ideal_result": "Smooth subdermal track; equal bite depth/width throughout."
+    },
+    {
+      "rubric": "Enters the dermal layer directly across from exit site",
+      "what_you_assess": "Is each bite taken directly opposite the prior exit to ensure symmetric closure?",
+      "ideal_result": "Entry mirrors previous exit; straight, symmetric path."
+    },
+    {
+      "rubric": "Avoids multiple penetrations of the dermis",
+      "what_you_assess": "Does needle remain within dermis without unintended surface breaches?",
+      "ideal_result": "No extra punctures; passes stay subcuticular, protecting epidermis."
+    },
+    {
+      "rubric": "Avoids multiple forceps grasps of skin",
+      "what_you_assess": "Is delicate dermal tissue handled with minimal gentle grasps?",
+      "ideal_result": "Single light grasp per bite; no crushing."
+    },
+    {
+      "rubric": "Instrument ties with square knots",
+      "what_you_assess": "Are knots securely buried or secured without surface exposure?",
+      "ideal_result": "Buried knot deep under skin, secure, no protrusion."
+    },
+    {
+      "rubric": "Approximates skin with appropriate tension",
+      "what_you_assess": "Does suture line close skin edges flatly without ridging or gaping?",
+      "ideal_result": "Smooth hairline closure; no dimpling, inversion, or eversion; even tension."
+    },
+    {
+      "rubric": "Economy of time and motion",
+      "what_you_assess": "Is the running or interrupted subcuticular stitch placed in a continuous, efficient flow?",
+      "ideal_result": "Steady progression; minimal instrument changes; controlled tension."
+    }
+  ]
+}
+
