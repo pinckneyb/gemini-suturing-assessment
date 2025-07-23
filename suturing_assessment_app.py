@@ -9,11 +9,26 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 import threading
 import os
 from typing import Optional
+from pathlib import Path
 from config import Config
 from gemini_assessor import SuturingAssessor
 import cv2
 from PIL import Image, ImageTk
 from google.genai import types
+from reportlab.lib import colors
+try:
+    from PIL.Image import Resampling
+    RESAMPLE_LANCZOS = Resampling.LANCZOS
+except ImportError:
+    try:
+        from PIL.Image import LANCZOS
+        RESAMPLE_LANCZOS = LANCZOS
+    except ImportError:
+        try:
+            from PIL.Image import BICUBIC
+            RESAMPLE_LANCZOS = BICUBIC
+        except ImportError:
+            RESAMPLE_LANCZOS = Image.NEAREST
 
 class SuturingAssessmentGUI:
     def __init__(self, root):
@@ -74,15 +89,25 @@ class SuturingAssessmentGUI:
         suture_combo.grid(row=0, column=1, sticky="w", padx=(0, 10))
         ttk.Label(suture_frame, text="(Select the type of suture being performed)").grid(row=0, column=2, sticky="w")
 
-        # Action Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=4, column=0, columnspan=2, pady=20)
+        # Assessment Actions
+        action_frame = ttk.LabelFrame(main_frame, text="Assessment Actions", padding="10")
+        action_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        action_frame.columnconfigure(1, weight=1)
         
-        assess_btn = ttk.Button(button_frame, text="Assess Suturing", command=self.run_assessment, style="Accent.TButton")
-        assess_btn.pack(side=tk.LEFT, padx=(0, 10))
+        # Single video assessment
+        single_btn = ttk.Button(action_frame, text="Single Video Assessment", 
+                               command=self.run_assessment, style="Accent.TButton")
+        single_btn.grid(row=0, column=0, sticky="ew", padx=(0, 5))
         
-        batch_btn = ttk.Button(button_frame, text="Batch Assessment", command=self.batch_assessment)
-        batch_btn.pack(side=tk.LEFT)
+        # PDF export button (initially disabled)
+        self.pdf_btn = ttk.Button(action_frame, text="Export PDF Report", 
+                                 command=self.generate_pdf_report, state="disabled")
+        self.pdf_btn.grid(row=0, column=1, sticky="ew", padx=(5, 5))
+        
+        # Clear/Reset button
+        clear_btn = ttk.Button(action_frame, text="Clear All", 
+                              command=self.clear_all_data)
+        clear_btn.grid(row=0, column=2, sticky="ew", padx=(5, 0))
 
         # Progress Bar
         self.progress = ttk.Progressbar(main_frame, mode='indeterminate')
@@ -98,9 +123,6 @@ class SuturingAssessmentGUI:
         self.notebook.add(assess_frame, text="Suturing Assessment")
         self.assess_text = scrolledtext.ScrolledText(assess_frame, wrap=tk.WORD, height=20)
         self.assess_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        # PDF Button
-        self.pdf_btn = ttk.Button(assess_frame, text="Download PDF Report", command=self.generate_pdf_report)
-        self.pdf_btn.pack(pady=(0, 10))
 
         # Raw Response Tab
         raw_frame = ttk.Frame(self.notebook)
@@ -108,10 +130,113 @@ class SuturingAssessmentGUI:
         self.raw_text = scrolledtext.ScrolledText(raw_frame, wrap=tk.WORD, height=20)
         self.raw_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
+        # Batch Processing
+        batch_frame = ttk.LabelFrame(main_frame, text="Batch Processing", padding="10")
+        batch_frame.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        batch_frame.columnconfigure(1, weight=1)
+        
+        # Batch assessment buttons
+        batch_btn_frame = ttk.Frame(batch_frame)
+        batch_btn_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        batch_btn_frame.columnconfigure(0, weight=1)
+        batch_btn_frame.columnconfigure(1, weight=1)
+        batch_btn_frame.columnconfigure(2, weight=1)
+        
+        # Single folder batch
+        single_batch_btn = ttk.Button(batch_btn_frame, text="Single Folder\nBatch Assessment", 
+                                     command=self.single_folder_batch_assessment)
+        single_batch_btn.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        
+        # Multi-folder batch
+        multi_batch_btn = ttk.Button(batch_btn_frame, text="Multi-Folder\nBatch Assessment", 
+                                    command=self.multi_folder_batch_assessment)
+        multi_batch_btn.grid(row=0, column=1, sticky="ew", padx=5)
+        
+        # Batch preprocessing
+        preprocess_btn = ttk.Button(batch_btn_frame, text="Batch Preprocess\nVideos (>200MB)", 
+                                   command=self.batch_preprocess_videos)
+        preprocess_btn.grid(row=0, column=2, sticky="ew", padx=(5, 0))
+        
+        # Batch progress indicators
+        self.batch_status = tk.StringVar(value="")
+        batch_status_label = ttk.Label(batch_frame, textvariable=self.batch_status, 
+                                      font=("Arial", 9), foreground="blue")
+        batch_status_label.grid(row=1, column=0, columnspan=2, sticky="ew")
+        
+        # Batch progress bar
+        self.batch_progress = ttk.Progressbar(batch_frame, mode='determinate')
+        self.batch_progress.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        
         # Status Bar
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
-        status_bar.grid(row=7, column=0, columnspan=2, sticky="ew")
+        status_bar.grid(row=8, column=0, columnspan=2, sticky="ew")
+
+        # Consensus Mode Checkbox
+        self.consensus_mode = tk.BooleanVar(value=True)
+        consensus_check = ttk.Checkbutton(action_frame, text="Consensus Mode (multiple runs per rubric)", variable=self.consensus_mode, command=self._toggle_consensus_options)
+        consensus_check.grid(row=1, column=0, sticky="w", padx=(0, 5), pady=(5, 0))
+        # Number of runs Spinbox (default 3, min 2, max 3)
+        self.num_runs = tk.IntVar(value=3)
+        self.runs_spinbox = ttk.Spinbox(action_frame, from_=2, to=3, textvariable=self.num_runs, width=5, state="normal")
+        self.runs_spinbox.grid(row=1, column=1, sticky="w", padx=(0, 5), pady=(5, 0))
+        ttk.Label(action_frame, text="runs per rubric").grid(row=1, column=2, sticky="w", pady=(5, 0))
+
+    def _toggle_consensus_options(self):
+        if self.consensus_mode.get():
+            self.runs_spinbox.config(state="normal")
+        else:
+            self.runs_spinbox.config(state="disabled")
+
+    def clear_all_data(self):
+        """Clear all current assessment data and reset the GUI for the next run."""
+        # Clear video path
+        self.video_path.set("")
+        
+        # Clear suture type selection
+        self.suture_type.set("")
+        
+        # Clear final frame path
+        self.final_frame_path = None
+        
+        # Clear assessment results
+        self.last_result = None
+        
+        # Clear text areas
+        self.assess_text.config(state=tk.NORMAL)
+        self.assess_text.delete(1.0, tk.END)
+        self.assess_text.config(state=tk.DISABLED)
+        
+        self.raw_text.config(state=tk.NORMAL)
+        self.raw_text.delete(1.0, tk.END)
+        self.raw_text.config(state=tk.DISABLED)
+        
+        # Clear images by calling _display_final_product_images with no data
+        self._display_final_product_images(clear_only=True)
+        
+        # Reset status
+        self.status_var.set("Ready")
+        
+        # Stop progress bar
+        self.progress.stop()
+        
+        # Disable PDF button
+        self.pdf_btn.config(state="disabled")
+        
+        # Reset consensus mode to defaults
+        self.consensus_mode.set(True)
+        self.num_runs.set(3)
+        self.runs_spinbox.config(state="normal")
+        
+        # Clear batch status
+        self.batch_status.set("")
+        self.batch_progress['value'] = 0
+        
+        # Switch to assessment tab
+        self.notebook.select(0)
+        
+        # Show confirmation
+        messagebox.showinfo("Cleared", "All data has been cleared. Ready for next assessment.")
 
     def save_api_key(self):
         api_key = self.api_key.get().strip()
@@ -127,10 +252,15 @@ class SuturingAssessmentGUI:
             filetypes=[("Video files", "*.mp4 *.avi *.mov *.mkv *.wmv *.m4v"), ("All files", "*.*")]
         )
         if file_path:
-            self.video_path.set(file_path)
-            self.status_var.set("Extracting final product frame...")
+            # Always preprocess/compress/convert first, even for small files, to ensure compatibility
+            self.status_var.set("Processing video for compatibility...")
             self.progress.start()
-            thread = threading.Thread(target=self.extract_final_frame_thread, args=(file_path,))
+            def preprocess_and_extract():
+                processed_path = self.preprocess_video(file_path)
+                self.video_path.set(processed_path)
+                self.status_var.set("Extracting final product frame...")
+                self.extract_final_frame_thread(processed_path)
+            thread = threading.Thread(target=preprocess_and_extract)
             thread.daemon = True
             thread.start()
 
@@ -151,11 +281,12 @@ class SuturingAssessmentGUI:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
-        scale_str = 'scale=-2:720' if max(width, height) > 720 else 'scale=trunc(iw/2)*2:trunc(ih/2)*2'
+        # More conservative scaling - maintain higher quality for assessment
+        scale_str = 'scale=-2:1080' if max(width, height) > 1080 else 'scale=trunc(iw/2)*2:trunc(ih/2)*2'
         cmd = [
             'ffmpeg', '-y', '-i', video_path,
             '-vf', scale_str,
-            '-c:v', 'libx264', '-preset', 'fast', '-crf', '28',
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '24',  # Better quality (was 28)
             '-an',  # strip audio
             processed_path
         ]
@@ -166,7 +297,7 @@ class SuturingAssessmentGUI:
         return processed_path
 
     def extract_final_frame_thread(self, video_path):
-        # Always extract final frame from original video
+        # Always extract final frame from the processed video
         cap = cv2.VideoCapture(video_path)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = max(0, total_frames - 10)
@@ -192,67 +323,116 @@ class SuturingAssessmentGUI:
                 new_h = int(h * (1024 / w))
             resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
             cv2.imwrite(candidate_path, resized)
-            self.root.after(0, lambda: self._final_frame_result(found, candidate_path))
+            self.root.after(0, lambda: self._manual_frame_selection(candidate_path))
         else:
             # No suitable frame found: warn and offer manual selection
             self.root.after(0, lambda: self._manual_frame_selection(video_path))
 
-    def _manual_frame_selection(self, video_path):
+    def _manual_frame_selection(self, image_path):
         import cv2
         from PIL import Image, ImageTk
         import tkinter as tk
-        from tkinter import Toplevel, Label, Button, Scale, HORIZONTAL, messagebox
-        cap = cv2.VideoCapture(video_path)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total_frames == 0:
-            messagebox.showwarning("Final Product Not Accessible", "Could not find a suitable final product frame in the video.")
-            return
-        # Create a simple frame selection dialog
-        sel_win = Toplevel(self.root)
-        sel_win.title("Select Final Product Frame")
-        sel_win.geometry("600x500")
-        Label(sel_win, text="No suitable final product frame was found. Please select a frame manually.").pack(pady=10)
-        img_label = Label(sel_win)
-        img_label.pack(pady=10)
-        def show_frame(idx):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-            ret, frame = cap.read()
-            if not ret or frame is None:
-                return
-            # Resize for display
-            h, w = frame.shape[:2]
-            scale = 400 / max(h, w)
-            disp = cv2.resize(frame, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
-            img = Image.fromarray(cv2.cvtColor(disp, cv2.COLOR_BGR2RGB))
-            tk_img = ImageTk.PhotoImage(img)
-            img_label.configure(image=tk_img)
-            img_label.image = tk_img
-        def save_and_close():
-            idx = slider.get()
-            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-            ret, frame = cap.read()
-            if not ret or frame is None:
-                messagebox.showerror("Error", "Could not extract selected frame.")
+        from tkinter import Toplevel, Label, Button, messagebox, Canvas
+        # Load the image before creating the dialog
+        img = Image.open(image_path)
+        # All image processing is done before dialog creation
+        def show_dialog():
+            sel_win = Toplevel(self.root)
+            sel_win.title("Select Final Product Frame and Region")
+            sel_win.minsize(800, 700)
+            sel_win.grab_set()
+            Label(sel_win, text="Rotate as needed, then select the suture to assess by dragging a rectangle.").pack(pady=10)
+            # Store rotation state
+            rotation = {'angle': 0}
+            def rotate_img(angle):
+                rotation['angle'] = (rotation['angle'] + angle) % 360
+                update_canvas()
+            # Confirm selection button at the bottom
+            confirm_frame = tk.Frame(sel_win)
+            confirm_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+            def save_and_close():
+                # Apply rotation
+                rotated = img.rotate(rotation['angle'], expand=True)
+                w, h = rotated.size
+                scale = min(600 / w, 600 / h)
+                # Map selection to original image coordinates
+                if not selection['rect'] or not all(isinstance(v, int) for v in selection['rect']):
+                    messagebox.showerror("Error", "Please select a region to assess.")
+                    return
+                x0, y0, x1, y1 = selection['rect']
+                x0, x1 = sorted([x0, x1])
+                y0, y1 = sorted([y0, y1])
+                # Scale back to original image
+                x0 = int(x0 / scale)
+                x1 = int(x1 / scale)
+                y0 = int(y0 / scale)
+                y1 = int(y1 / scale)
+                cropped = rotated.crop((x0, y0, x1, y1))
+                # Resize so long side is 1024 pixels
+                ch, cw = cropped.size[1], cropped.size[0]
+                if ch > cw:
+                    new_h = 1024
+                    new_w = int(cw * (1024 / ch))
+                else:
+                    new_w = 1024
+                    new_h = int(ch * (1024 / cw))
+                try:
+                    resized = cropped.resize((new_w, new_h), RESAMPLE_LANCZOS)
+                except Exception:
+                    resized = cropped.resize((new_w, new_h))
+                candidate_path = os.path.splitext(image_path)[0] + "_cropped.png"
+                resized.save(candidate_path)
                 sel_win.destroy()
-                return
-            # Resize so long side is 1024 pixels
-            h, w = frame.shape[:2]
-            if h > w:
-                new_h = 1024
-                new_w = int(w * (1024 / h))
-            else:
-                new_w = 1024
-                new_h = int(h * (1024 / w))
-            resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
-            candidate_path = os.path.splitext(video_path)[0] + "_final_frame.png"
-            cv2.imwrite(candidate_path, resized)
-            sel_win.destroy()
-            self._final_frame_result(True, candidate_path)
-        slider = Scale(sel_win, from_=0, to=total_frames-1, orient=HORIZONTAL, length=500, command=lambda idx: show_frame(int(idx)))
-        slider.set(total_frames-1)
-        slider.pack(pady=10)
-        Button(sel_win, text="Use This Frame", command=save_and_close).pack(pady=10)
-        show_frame(total_frames-1)
+                self._final_frame_result(True, candidate_path)
+            use_btn = Button(confirm_frame, text="Use This Region", command=save_and_close)
+            use_btn.pack(side=tk.BOTTOM, pady=5)
+            # Keyboard shortcut for Enter/Return
+            def on_enter(event):
+                save_and_close()
+            sel_win.bind('<Return>', on_enter)
+            # Canvas for image and selection
+            canvas = Canvas(sel_win, width=600, height=600, cursor="cross")
+            canvas.pack(pady=10)
+            tk_img = None
+            start_x = start_y = end_x = end_y = None
+            selection = {'rect': None}
+            def update_canvas():
+                nonlocal tk_img, img
+                display_img = img.rotate(rotation['angle'], expand=True)
+                w, h = display_img.size
+                scale = min(600 / w, 600 / h)
+                disp = display_img.resize((int(w*scale), int(h*scale)), RESAMPLE_LANCZOS)
+                tk_img = ImageTk.PhotoImage(disp)
+                canvas.delete("all")
+                canvas.create_image(0, 0, anchor="nw", image=tk_img)
+                if selection['rect'] and all(isinstance(v, int) for v in selection['rect']):
+                    canvas.create_rectangle(*selection['rect'], outline="red", width=2)
+            def on_mouse_down(event):
+                nonlocal start_x, start_y
+                start_x, start_y = event.x, event.y
+                selection['rect'] = None
+                update_canvas()
+            def on_mouse_drag(event):
+                nonlocal end_x, end_y
+                end_x, end_y = event.x, event.y
+                selection['rect'] = (start_x, start_y, end_x, end_y)
+                update_canvas()
+            def on_mouse_up(event):
+                nonlocal end_x, end_y
+                end_x, end_y = event.x, event.y
+                selection['rect'] = (start_x, start_y, end_x, end_y)
+                update_canvas()
+            canvas.bind("<ButtonPress-1>", on_mouse_down)
+            canvas.bind("<B1-Motion>", on_mouse_drag)
+            canvas.bind("<ButtonRelease-1>", on_mouse_up)
+            # Rotation buttons
+            btn_frame = tk.Frame(sel_win)
+            btn_frame.pack(pady=5)
+            Button(btn_frame, text="Rotate Left 90°", command=lambda: rotate_img(-90)).pack(side=tk.LEFT, padx=10)
+            Button(btn_frame, text="Rotate Right 90°", command=lambda: rotate_img(90)).pack(side=tk.LEFT, padx=10)
+            update_canvas()
+        # Always create the dialog on the main thread
+        self.root.after(0, show_dialog)
 
     def _final_frame_result(self, found, candidate_path):
         self.progress.stop()
@@ -298,16 +478,17 @@ class SuturingAssessmentGUI:
         """Run suturing assessment"""
         if not self._validate_inputs():
             return
-        
         try:
             self.assessor = SuturingAssessor(self.api_key.get().strip())
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize assessor: {str(e)}")
             return
-        
         self.status_var.set("Assessing suturing procedure...")
         self.progress.start()
-        thread = threading.Thread(target=self._run_assessment_thread)
+        consensus = self.consensus_mode.get()
+        num_runs = self.num_runs.get() if consensus else 1
+        print(f"GUI DEBUG: consensus={consensus}, num_runs={num_runs}")
+        thread = threading.Thread(target=self._run_assessment_thread, args=(consensus, num_runs))
         thread.daemon = True
         thread.start()
 
@@ -324,31 +505,78 @@ class SuturingAssessmentGUI:
             return False
         return True
 
-    def _run_assessment_thread(self):
-        """Run suturing assessment in background thread"""
+    def _run_assessment_thread(self, consensus, num_runs):
+        """Run assessment in background thread with progress updates."""
+        print(f"ASSESSMENT THREAD DEBUG: consensus={consensus}, num_runs={num_runs}")
         try:
-            assert self.assessor is not None
-            suture_type = self.suture_type.get()
-            # Only preprocess if over 200MB
             video_path = self.video_path.get()
-            if os.path.getsize(video_path) > 200 * 1024 * 1024:
-                self.status_var.set("Processing video for Gemini API size limits...")
-                self.root.update_idletasks()
-                video_path = self.preprocess_video(video_path)
-            if self.final_frame_path is None:
-                self.root.after(0, lambda: self._show_error("No final product image available for assessment"))
+            suture_type = self.suture_type.get()
+            if not video_path or not suture_type:
+                self.root.after(0, lambda: self._show_error("Please select a video file and suture type"))
                 return
-            result = self.assessor.assess_video(self.final_frame_path, None, suture_type, video_path)
+            self.root.after(0, lambda: self.status_var.set("Initializing assessor..."))
+            api_key = self.config.get_api_key()
+            if not api_key:
+                self.root.after(0, lambda: self._show_error("Please set your API key first"))
+                return
+            self.assessor = SuturingAssessor(api_key)
+            self.root.after(0, lambda: self.status_var.set("Extracting final frame..."))
+            if not self.final_frame_path:
+                self.root.after(0, lambda: self._show_error("No final frame available. Please browse for a video first."))
+                return
+            def progress_callback(message):
+                self.root.after(0, lambda: self.status_var.set(message))
+                self.root.after(0, self.root.update_idletasks)
+                if "Assessing rubric point" in message:
+                    self.root.after(0, lambda: self._update_assessment_progress(message))
+            self.root.after(0, lambda: self.status_var.set("Running assessment..."))
+            print(f"ASSESS_VOP CALL DEBUG: consensus={consensus}, num_runs={num_runs}")
+            result = self.assessor.assess_vop(
+                video_path,
+                self.final_frame_path,
+                None,
+                suture_type,
+                progress_callback,
+                consensus,
+                num_runs
+            )
             self.root.after(0, lambda: self._display_assessment_result(result))
         except Exception as e:
-            error_msg = str(e)
-            self.root.after(0, lambda: self._show_error(f"Assessment failed: {error_msg}"))
+            import traceback
+            error_msg = f"Assessment failed: {str(e)}\n\n{traceback.format_exc()}"
+            self.root.after(0, lambda: self._show_error(error_msg))
+        finally:
+            self.root.after(0, lambda: self.progress.stop())
+    
+    def _update_assessment_progress(self, message):
+        """Update the assessment text area with current rubric point being assessed."""
+        self.assess_text.config(state=tk.NORMAL)
+        # Clear previous progress messages
+        content = self.assess_text.get(1.0, tk.END)
+        lines = content.split('\n')
+        # Remove any previous progress messages
+        filtered_lines = [line for line in lines if not line.startswith("🔄 Assessing rubric point")]
+        # Add current progress message
+        filtered_lines.append(f"🔄 {message}")
+        # Update the text area
+        self.assess_text.delete(1.0, tk.END)
+        self.assess_text.insert(1.0, '\n'.join(filtered_lines))
+        self.assess_text.config(state=tk.DISABLED)
+        # Scroll to bottom
+        self.assess_text.see(tk.END)
 
     def _display_assessment_result(self, result):
         """Display suturing assessment results with improved formatting."""
         self.last_result = result  # Store for PDF export
         self.progress.stop()
         self.status_var.set("Assessment completed")
+        
+        # Enable PDF button if assessment was successful
+        if 'vop_assessment' in result and 'error' not in result:
+            self.pdf_btn.config(state="normal")
+        else:
+            self.pdf_btn.config(state="disabled")
+            
         self.assess_text.config(state=tk.NORMAL)
         self.assess_text.delete(1.0, tk.END)
         self._display_final_product_images()
@@ -392,11 +620,16 @@ class SuturingAssessmentGUI:
         # No grab_set(), so UI remains responsive
         top.focus_set()
 
-    def _display_final_product_images(self):
+    def _display_final_product_images(self, clear_only=False):
         """Display the reference and student final product images side by side above the assessment text. Both images are clickable to enlarge."""
         # Remove any previous image frames
         if hasattr(self, 'image_frame') and self.image_frame:
             self.image_frame.destroy()
+        
+        # If clear_only is True, just remove the images and return
+        if clear_only:
+            return
+            
         # Create a new frame above the assessment text
         parent = self.assess_text.master
         self.image_frame = tk.Frame(parent)
@@ -560,32 +793,52 @@ class SuturingAssessmentGUI:
         messagebox.showerror("Error", message)
 
     def generate_pdf_report(self):
-        """Generate a PDF report of the assessment, including images, scores, comments, and metadata. Handles new assessment format."""
+        """Generate a professional PDF report of the assessment with separator lines and improved formatting."""
         import datetime
         from reportlab.lib.pagesizes import letter
         from reportlab.pdfgen import canvas
-        from reportlab.lib.utils import ImageReader
+        from reportlab.lib.utils import ImageReader, simpleSplit
+        from reportlab.lib import colors
         from tkinter import filedialog
         import io
+        import re
+        
         # Get assessment data
         assessment = getattr(self, 'last_result', None)
         if not assessment:
             messagebox.showerror("Error", "No assessment data to export.")
             return
+        
         suture_type = self.suture_type.get()
         now = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
         video_filename = os.path.basename(self.video_path.get()) if self.video_path.get() else "Unknown"
+        
         # Use suture type and video filename in PDF title
         default_pdf_name = f"Suturing Assessment - {suture_type.replace('_', ' ').title()} - {video_filename}.pdf"
         pdf_path = filedialog.asksaveasfilename(defaultextension=".pdf", initialfile=default_pdf_name, filetypes=[("PDF files", "*.pdf")], title="Save PDF Report")
         if not pdf_path:
             return
+        
         c = canvas.Canvas(pdf_path, pagesize=letter)
         width, height = letter
         y = height - 40
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(40, y, f"Suturing Assessment Report - {video_filename}")
+        
+        # Page 1: Header and Assessment Results
+        # Title with professional formatting
+        c.setFont("Helvetica-Bold", 18)
+        c.drawCentredString(width // 2, y, "Suturing Assessment Report")
         y -= 30
+        
+        # Add separator line after title
+        c.setStrokeColor(colors.grey)
+        c.line(40, y + 5, width - 40, y + 5)
+        y -= 20
+        
+        # Metadata section
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(40, y, "Assessment Information")
+        y -= 20
+        
         c.setFont("Helvetica", 10)
         c.drawString(40, y, f"Video File: {video_filename}")
         y -= 15
@@ -593,37 +846,122 @@ class SuturingAssessmentGUI:
         y -= 15
         c.drawString(40, y, f"Assessment Date: {now}")
         y -= 25
-        # Assessment output (no duplicate headings)
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(40, y, "Assessment Results:")
+        
+        # Add separator line before assessment results
+        c.setStrokeColor(colors.grey)
+        c.line(40, y + 5, width - 40, y + 5)
         y -= 20
-        c.setFont("Helvetica", 10)
+        
+        # Assessment Results section
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(40, y, "Assessment Results")
+        y -= 25
+        
+        # Get assessment text
         assessment_text = None
         if isinstance(assessment, dict) and 'vop_assessment' in assessment:
             assessment_text = assessment['vop_assessment']
         else:
             assessment_text = str(assessment)
+        
         # Remove duplicate headings from assessment_text
-        import re
         assessment_text = re.sub(r"SUTURING ASSESSMENT RESULTS.*?={10,}\n+", "", assessment_text, flags=re.DOTALL)
-        # Word wrap assessment text
-        from reportlab.lib.utils import simpleSplit
+        
+        # Process assessment text with professional formatting
         max_width = width - 80
-        for line in assessment_text.splitlines():
-            wrapped = simpleSplit(line.strip(), "Helvetica", 10, max_width)
-            for wline in wrapped:
-                if y < 60:
-                    c.showPage()
-                    y = height - 40
-                    c.setFont("Helvetica", 10)
-                c.drawString(40, y, wline)
-                y -= 12
+        lines = assessment_text.splitlines()
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                y -= 8  # Extra space for empty lines
+                continue
+                
+            # Handle rubric point headers (e.g., "1) passes needle perpendicular to skin")
+            if re.match(r'^\d+\)', line):
+                # Add section separator line
+                c.setStrokeColor(colors.grey)
+                c.line(40, y + 5, width - 40, y + 5)
+                y -= 10
+                
+                c.setFont("Helvetica-Bold", 11)
+                wrapped = simpleSplit(line, "Helvetica-Bold", 11, max_width)
+                for wline in wrapped:
+                    if y < 60:
+                        c.showPage()
+                        y = height - 40
+                        c.setFont("Helvetica-Bold", 11)
+                    c.drawString(40, y, wline)
+                    y -= 14
+                y -= 8  # Extra space after rubric point
+            
+            # Handle score lines (e.g., "3/5 competent")
+            elif re.match(r'^\d+/5\s+(poor|substandard|competent|proficient|exemplary)', line, re.IGNORECASE):
+                c.setFont("Helvetica-Bold", 11)
+                c.drawString(40, y, line)
+                y -= 16
+                y -= 8  # Extra space after score
+            
+            # Handle description lines (formerly justification)
+            elif line and not line.startswith('Final Score:') and not line.startswith('Summative Comment:'):
+                c.setFont("Helvetica", 10)
+                wrapped = simpleSplit(line, "Helvetica", 10, max_width)
+                for wline in wrapped:
+                    if y < 60:
+                        c.showPage()
+                        y = height - 40
+                        c.setFont("Helvetica", 10)
+                    c.drawString(40, y, wline)
+                    y -= 12
+                y -= 10  # Extra space after description
+                
+                # Add separator line after each complete rubric point
+                c.setStrokeColor(colors.lightgrey)
+                c.line(40, y + 5, width - 40, y + 5)
+                y -= 15  # Extra space after separator
+            
+            # Handle final score line
+            elif line.startswith('Final Score:'):
+                # Add separator line before final score
+                c.setStrokeColor(colors.grey)
+                c.line(40, y + 5, width - 40, y + 5)
+                y -= 15
+                
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(40, y, line)
+                y -= 20
+            
+            # Handle summative comment
+            elif line.startswith('Summative Comment:'):
+                y -= 10  # Extra space before comment
+                c.setFont("Helvetica-Bold", 11)
+                c.drawString(40, y, line)
+                y -= 16
+            else:
+                # Handle any other lines
+                c.setFont("Helvetica", 10)
+                wrapped = simpleSplit(line, "Helvetica", 10, max_width)
+                for wline in wrapped:
+                    if y < 60:
+                        c.showPage()
+                        y = height - 40
+                        c.setFont("Helvetica", 10)
+                    c.drawString(40, y, wline)
+                    y -= 12
+        
         # Page 2: Student Final Product (centered, enlarged)
         c.showPage()
         y = height - 60
-        c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(width // 2, y, "Student Final Product:")
+        
+        # Add separator line at top
+        c.setStrokeColor(colors.grey)
+        c.line(40, y + 5, width - 40, y + 5)
         y -= 20
+        
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width // 2, y, "Student Final Product")
+        y -= 25
+        
         if self.final_frame_path and os.path.exists(self.final_frame_path):
             img_w, img_h = 600, 450
             x = (width - img_w) // 2
@@ -632,9 +970,16 @@ class SuturingAssessmentGUI:
         # Page 3: Reference Image (centered, enlarged)
         c.showPage()
         y = height - 60
-        c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(width // 2, y, "Reference Image:")
+        
+        # Add separator line at top
+        c.setStrokeColor(colors.grey)
+        c.line(40, y + 5, width - 40, y + 5)
         y -= 20
+        
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width // 2, y, "Reference Image")
+        y -= 25
+        
         if suture_type == "simple_interrupted":
             ref_image_path = "simple_interrupted_example.png"
         elif suture_type == "vertical_mattress":
@@ -643,13 +988,15 @@ class SuturingAssessmentGUI:
             ref_image_path = "subcuticular_example.png"
         else:
             ref_image_path = None
+            
         if ref_image_path and os.path.exists(ref_image_path):
             img_w, img_h = 600, 450
             x = (width - img_w) // 2
             c.drawImage(ref_image_path, x, y - img_h, width=img_w, height=img_h, preserveAspectRatio=True, mask='auto')
 
         c.save()
-        messagebox.showinfo("PDF Saved", f"PDF report saved to: {pdf_path}")
+        messagebox.showinfo("PDF Saved", f"Professional PDF report saved to: {pdf_path}")
+        
         # Offer to open the PDF
         import sys
         import subprocess
@@ -680,26 +1027,24 @@ class SuturingAssessmentGUI:
             self.single_folder_batch_assessment()
 
     def single_folder_batch_assessment(self):
-        """Initiate batch assessment of multiple videos in a single folder"""
+        """Initiate batch assessment of multiple videos in a single folder using smart video selection"""
         from pathlib import Path
         
         folder_path = filedialog.askdirectory(title="Select Folder with Videos")
         if not folder_path:
             return
         
-        # Get all video files
-        video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.m4v']
-        video_files = []
-        for ext in video_extensions:
-            video_files.extend(Path(folder_path).glob(f"*{ext}"))
+        # Use smart video selection
+        video_files = self._smart_video_selection(folder_path)
         
         if not video_files:
-            messagebox.showwarning("No Videos Found", "No video files found in selected folder")
+            messagebox.showwarning("No Videos Found", "No suitable video files found in selected folder")
             return
         
         # Confirm with user
-        result = messagebox.askyesno("Confirm Batch Assessment", 
+        result = messagebox.askyesno("Confirm Smart Batch Assessment", 
                                     f"Assess {len(video_files)} videos as {self.suture_type.get()} sutures?\n\n"
+                                    f"Smart selection will use preprocessed videos when available and skip large originals.\n"
                                     f"Videos will be processed one by one and PDF reports will be saved in the same folder.")
         if not result:
             return
@@ -771,14 +1116,11 @@ class SuturingAssessmentGUI:
             if not folder_path:
                 return
             
-            # Check for video files
-            video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.m4v']
-            video_files = []
-            for ext in video_extensions:
-                video_files.extend(Path(folder_path).glob(f"*{ext}"))
+            # Use smart video selection
+            video_files = self._smart_video_selection(folder_path)
             
             if not video_files:
-                messagebox.showwarning("No Videos Found", f"No video files found in {folder_path}")
+                messagebox.showwarning("No Videos Found", f"No suitable video files found in {folder_path}")
                 return
             
             # Create suture type selection dialog
@@ -967,9 +1309,34 @@ class SuturingAssessmentGUI:
                 print("Failed to extract final frame")
                 return None
             
-            print("Preprocessing video...")
-            # Preprocess video if needed
-            processed_video_path = self.preprocess_video(video_path)
+            # Save final frame to video directory for PDF inclusion
+            video_dir = os.path.dirname(video_path)
+            video_name = os.path.splitext(os.path.basename(video_path))[0]
+            saved_final_frame_path = os.path.join(video_dir, f"{video_name}_final_frame.png")
+            
+            try:
+                import shutil
+                shutil.copy2(final_frame_path, saved_final_frame_path)
+                print(f"Saved final frame to: {saved_final_frame_path}")
+            except Exception as e:
+                print(f"Warning: Could not save final frame: {e}")
+            
+            print("Checking if video needs preprocessing...")
+            # Check if video is already preprocessed or needs preprocessing
+            if video_path.endswith('_processed.mp4'):
+                # Already preprocessed - use as is
+                processed_video_path = video_path
+                print("Using preprocessed video directly")
+            else:
+                # Check if preprocessed version exists
+                base, ext = os.path.splitext(video_path)
+                preprocessed_path = base + '_processed.mp4'
+                if os.path.exists(preprocessed_path):
+                    processed_video_path = preprocessed_path
+                    print(f"Using existing preprocessed version: {preprocessed_path}")
+                else:
+                    # Preprocess video if needed
+                    processed_video_path = self.preprocess_video(video_path)
             
             print("Running assessment...")
             # Run assessment with specified suture type
@@ -1069,11 +1436,68 @@ class SuturingAssessmentGUI:
         c.drawString(40, y, f"Assessment Date: {now}")
         y -= 25
         
+        # Add final product image if available
+        final_frame_path = os.path.splitext(video_path)[0] + "_final_frame.png"
+        if os.path.exists(final_frame_path):
+            try:
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(40, y, "Final Product Image:")
+                y -= 15
+                
+                # Load and resize image for PDF
+                img = ImageReader(final_frame_path)
+                img_width, img_height = img.getSize()
+                
+                # Scale image to fit on page (max 300px width)
+                scale = min(300 / img_width, 200 / img_height)
+                display_width = img_width * scale
+                display_height = img_height * scale
+                
+                # Check if we need a new page
+                if y - display_height < 60:
+                    c.showPage()
+                    y = height - 40
+                
+                c.drawImage(final_frame_path, 40, y - display_height, width=display_width, height=display_height)
+                y -= display_height + 20
+                
+            except Exception as e:
+                print(f"Error adding final product image to PDF: {e}")
+                y -= 20
+        
+        # Add exemplar image if available
+        exemplar_path = f"{suture_type}_example.png"
+        if os.path.exists(exemplar_path):
+            try:
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(40, y, "Exemplar Image:")
+                y -= 15
+                
+                # Load and resize image for PDF
+                img = ImageReader(exemplar_path)
+                img_width, img_height = img.getSize()
+                
+                # Scale image to fit on page (max 300px width)
+                scale = min(300 / img_width, 200 / img_height)
+                display_width = img_width * scale
+                display_height = img_height * scale
+                
+                # Check if we need a new page
+                if y - display_height < 60:
+                    c.showPage()
+                    y = height - 40
+                
+                c.drawImage(exemplar_path, 40, y - display_height, width=display_width, height=display_height)
+                y -= display_height + 20
+                
+            except Exception as e:
+                print(f"Error adding exemplar image to PDF: {e}")
+                y -= 20
+        
         # Assessment output
         c.setFont("Helvetica-Bold", 12)
         c.drawString(40, y, "Assessment Results:")
         y -= 20
-        c.setFont("Helvetica", 10)
         
         assessment_text = None
         if isinstance(assessment, dict) and 'vop_assessment' in assessment:
@@ -1085,17 +1509,99 @@ class SuturingAssessmentGUI:
         import re
         assessment_text = re.sub(r"SUTURING ASSESSMENT RESULTS.*?={10,}\n+", "", assessment_text, flags=re.DOTALL)
         
-        # Word wrap assessment text
+        # Process assessment text with improved formatting
         max_width = width - 80
-        for line in assessment_text.splitlines():
-            wrapped = simpleSplit(line.strip(), "Helvetica", 10, max_width)
-            for wline in wrapped:
-                if y < 60:
-                    c.showPage()
-                    y = height - 40
-                    c.setFont("Helvetica", 10)
-                c.drawString(40, y, wline)
-                y -= 12
+        lines = assessment_text.splitlines()
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Check if we need a new page
+            if y < 60:
+                c.showPage()
+                y = height - 40
+            
+            # Handle rubric point headers (e.g., "1) passes needle perpendicular to skin")
+            if re.match(r'^\d+\)', line):
+                # Add section separator line
+                c.setStrokeColor(colors.grey)
+                c.line(40, y + 5, width - 40, y + 5)
+                y -= 10
+                
+                c.setFont("Helvetica-Bold", 11)
+                wrapped = simpleSplit(line, "Helvetica-Bold", 11, max_width)
+                for wline in wrapped:
+                    if y < 60:
+                        c.showPage()
+                        y = height - 40
+                        c.setFont("Helvetica-Bold", 11)
+                    c.drawString(40, y, wline)
+                    y -= 14
+                y -= 8  # Extra space after rubric point
+            
+            # Handle score lines (e.g., "3/5 competent")
+            elif re.match(r'^\d+/5\s+(poor|substandard|competent|proficient|exemplary)', line, re.IGNORECASE):
+                c.setFont("Helvetica-Bold", 11)
+                c.drawString(40, y, line)
+                y -= 16
+                y -= 8  # Extra space after score
+            
+            # Handle description lines (formerly justification)
+            elif line and not line.startswith('Final Score:') and not line.startswith('Summative Comment:'):
+                c.setFont("Helvetica", 10)
+                wrapped = simpleSplit(line, "Helvetica", 10, max_width)
+                for wline in wrapped:
+                    if y < 60:
+                        c.showPage()
+                        y = height - 40
+                        c.setFont("Helvetica", 10)
+                    c.drawString(40, y, wline)
+                    y -= 12
+                y -= 10  # Extra space after description
+                
+                # Add separator line after each complete rubric point
+                c.setStrokeColor(colors.lightgrey)
+                c.line(40, y + 5, width - 40, y + 5)
+                y -= 15  # Extra space after separator
+            
+            # Handle final score line
+            elif line.startswith('Final Score:'):
+                # Add separator before final score
+                y -= 15
+                c.setStrokeColor(colors.grey)
+                c.line(40, y + 5, width - 40, y + 5)
+                y -= 10
+                
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(40, y, line)
+                y -= 20
+                y -= 15  # Extra space after final score
+            
+            # Handle summative comment header
+            elif line.startswith('Summative Comment:'):
+                y -= 10  # Extra space before summative comment
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(40, y, line)
+                y -= 20
+            
+            # Handle empty lines
+            elif not line:
+                y -= 10  # Increased spacing for empty lines
+            
+            # Handle other lines
+            else:
+                c.setFont("Helvetica", 10)
+                wrapped = simpleSplit(line, "Helvetica", 10, max_width)
+                for wline in wrapped:
+                    if y < 60:
+                        c.showPage()
+                        y = height - 40
+                        c.setFont("Helvetica", 10)
+                    c.drawString(40, y, wline)
+                    y -= 12
+            
+            i += 1
         
         c.save()
         return pdf_path
@@ -1103,6 +1609,242 @@ class SuturingAssessmentGUI:
     def _generate_batch_pdf(self, assessment, video_path, output_folder):
         """Generate PDF for batch processing (legacy method)"""
         return self._generate_batch_pdf_with_type(assessment, video_path, output_folder, self.suture_type.get())
+
+    def batch_preprocess_videos(self):
+        """Initiate batch preprocessing of all large videos in a folder using parallel processing."""
+        folder_path = filedialog.askdirectory(title="Select Folder with Videos to Preprocess")
+        if not folder_path:
+            return
+        
+        video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.m4v']
+        video_files = []
+        for ext in video_extensions:
+            video_files.extend(Path(folder_path).glob(f"*{ext}"))
+        
+        if not video_files:
+            messagebox.showwarning("No Videos Found", "No video files found in selected folder to preprocess.")
+            return
+        
+        # Filter for large videos only
+        large_videos = [vf for vf in video_files if os.path.getsize(vf) > 200 * 1024 * 1024]
+        
+        if not large_videos:
+            messagebox.showinfo("No Large Videos", "No videos over 200MB found in the selected folder.")
+            return
+        
+        result = messagebox.askyesno("Confirm Parallel Batch Preprocessing", 
+                                    f"Preprocess {len(large_videos)} large videos in {folder_path}?\n\n"
+                                    f"This will create '_processed.mp4' files using parallel processing for faster completion.")
+        if not result:
+            return
+        
+        self.batch_status.set("Starting parallel batch preprocessing...")
+        self.root.update_idletasks()
+        
+        # Start parallel processing in background thread
+        thread = threading.Thread(target=self._run_parallel_preprocessing, args=(large_videos,))
+        thread.daemon = True
+        thread.start()
+
+    def _run_parallel_preprocessing(self, video_files):
+        """Run parallel video preprocessing with progress tracking."""
+        import concurrent.futures
+        import time
+        
+        total_videos = len(video_files)
+        processed_count = 0
+        failed_count = 0
+        start_time = time.time()
+        last_update_time = 0
+        
+        # Thread-safe counters
+        from threading import Lock
+        counter_lock = Lock()
+        
+        def process_single_video(video_file):
+            nonlocal processed_count, failed_count
+            video_name = video_file.name
+            video_path = str(video_file)
+            
+            try:
+                print(f"Starting parallel preprocessing of {video_name}...")
+                
+                # Use the same compression settings as individual preprocessing
+                import subprocess
+                import cv2
+                base, ext = os.path.splitext(video_path)
+                processed_path = base + '_processed.mp4'
+                
+                # Check format and resolution
+                cap = cv2.VideoCapture(video_path)
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                cap.release()
+                
+                # More conservative scaling - maintain higher quality for assessment
+                scale_str = 'scale=-2:1080' if max(width, height) > 1080 else 'scale=trunc(iw/2)*2:trunc(ih/2)*2'
+                cmd = [
+                    'ffmpeg', '-y', '-i', video_path,
+                    '-vf', scale_str,
+                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '24',  # Better quality
+                    '-an',  # strip audio
+                    processed_path
+                ]
+                
+                subprocess.run(cmd, check=True, capture_output=True)
+                
+                if os.path.exists(processed_path):
+                    print(f"Successfully preprocessed {video_name}")
+                    with counter_lock:
+                        processed_count += 1
+                    return True, video_name
+                else:
+                    print(f"Failed to preprocess {video_name} - output file not created")
+                    with counter_lock:
+                        failed_count += 1
+                    return False, video_name
+                    
+            except Exception as e:
+                print(f"Exception during preprocessing of {video_name}: {e}")
+                import traceback
+                traceback.print_exc()
+                with counter_lock:
+                    failed_count += 1
+                return False, video_name
+        
+        # Determine optimal number of workers based on CPU cores
+        import multiprocessing
+        max_workers = min(multiprocessing.cpu_count(), len(video_files), 4)  # Cap at 4 to avoid overwhelming system
+        
+        print(f"Starting parallel preprocessing with {max_workers} workers for {total_videos} videos...")
+        
+        # Initial status update and progress bar setup
+        self.root.after(0, lambda: self.batch_status.set(f"Starting parallel preprocessing with {max_workers} workers..."))
+        self.root.after(0, lambda: self.batch_progress.configure(maximum=total_videos, value=0))
+        
+        # Process videos in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_video = {executor.submit(process_single_video, video_file): video_file for video_file in video_files}
+            
+            # Process completed tasks and update progress (throttled)
+            for future in concurrent.futures.as_completed(future_to_video):
+                video_file = future_to_video[future]
+                try:
+                    success, video_name = future.result()
+                    current_processed = processed_count
+                    current_failed = failed_count
+                    
+                    # Throttle GUI updates to prevent freezing (update every 2 seconds max)
+                    current_time = time.time()
+                    if current_time - last_update_time >= 2.0:
+                        # Update progress in GUI (throttled)
+                        self.root.after(0, lambda p=current_processed, f=current_failed, t=total_videos: 
+                                       self.batch_status.set(f"Processing: {p} completed, {f} failed ({p+f}/{t})"))
+                        
+                        # Update progress bar
+                        self.root.after(0, lambda p=current_processed, f=current_failed: 
+                                       self.batch_progress.configure(value=p + f))
+                        
+                        # Calculate and show time estimates
+                        elapsed_time = current_time - start_time
+                        if current_processed + current_failed > 0:
+                            avg_time_per_video = elapsed_time / (current_processed + current_failed)
+                            remaining_videos = total_videos - (current_processed + current_failed)
+                            estimated_remaining = avg_time_per_video * remaining_videos
+                            
+                            self.root.after(0, lambda p=current_processed, f=current_failed, t=total_videos, 
+                                           est=estimated_remaining: 
+                                           self.batch_status.set(f"Processing: {p} completed, {f} failed ({p+f}/{t}) - Est. {est:.1f}s remaining"))
+                        
+                        last_update_time = current_time
+                    
+                except Exception as e:
+                    print(f"Error processing result for {video_file.name}: {e}")
+                    with counter_lock:
+                        failed_count += 1
+        
+        # Final status update
+        total_time = time.time() - start_time
+        avg_time = total_time / total_videos if total_videos > 0 else 0
+        
+        self.root.after(0, lambda p=processed_count, f=failed_count, t=total_videos, 
+                       time_taken=total_time, avg=avg_time: 
+                       self.batch_status.set(f"Complete: {p} processed, {f} failed in {time_taken:.1f}s (avg {avg:.1f}s/video)"))
+        
+        # Show completion dialog after a short delay to ensure GUI is responsive
+        self.root.after(1000, lambda: messagebox.showinfo("Parallel Batch Preprocessing Complete", 
+                                                         f"Parallel preprocessing of {total_videos} videos complete.\n\n"
+                                                         f"Successfully processed: {processed_count}\n"
+                                                         f"Failed: {failed_count}\n"
+                                                         f"Total time: {total_time:.1f} seconds\n"
+                                                         f"Average time per video: {avg_time:.1f} seconds\n"
+                                                         f"Speedup: ~{max_workers}x faster than sequential processing\n\n"
+                                                         f"Processed files are marked with '_processed.mp4' in their original location."))
+
+    def _smart_video_selection(self, folder_path):
+        """Smart video selection that prioritizes preprocessed videos and skips large originals when preprocessed versions exist"""
+        from pathlib import Path
+        
+        video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.m4v']
+        all_videos = []
+        
+        # Get all video files in folder
+        for ext in video_extensions:
+            all_videos.extend(Path(folder_path).glob(f"*{ext}"))
+        
+        if not all_videos:
+            return []
+        
+        # Separate original and preprocessed videos
+        original_videos = []
+        preprocessed_videos = []
+        
+        for video in all_videos:
+            if video.name.endswith('_processed.mp4'):
+                preprocessed_videos.append(video)
+            else:
+                original_videos.append(video)
+        
+        # Create mapping of original to preprocessed
+        original_to_processed = {}
+        for processed in preprocessed_videos:
+            # Extract original name (remove '_processed.mp4')
+            original_name = processed.name.replace('_processed.mp4', '')
+            # Find corresponding original file
+            for original in original_videos:
+                if original.name == original_name:
+                    original_to_processed[original] = processed
+                    break
+        
+        # Select videos using smart logic
+        selected_videos = []
+        
+        for original in original_videos:
+            original_size = os.path.getsize(original)
+            
+            if original in original_to_processed:
+                # Original has a preprocessed version - use the preprocessed one
+                selected_videos.append(original_to_processed[original])
+                print(f"Using preprocessed version: {original_to_processed[original].name} (original: {original.name})")
+            elif original_size <= 200 * 1024 * 1024:
+                # Original is under 200MB and no preprocessed version exists - use original
+                selected_videos.append(original)
+                print(f"Using original (under 200MB): {original.name}")
+            else:
+                # Original is over 200MB but no preprocessed version exists - skip
+                print(f"Skipping large original without preprocessed version: {original.name} ({original_size / (1024*1024):.1f}MB)")
+        
+        # Add any preprocessed videos that don't have corresponding originals (edge case)
+        for processed in preprocessed_videos:
+            original_name = processed.name.replace('_processed.mp4', '')
+            has_original = any(original.name == original_name for original in original_videos)
+            if not has_original:
+                selected_videos.append(processed)
+                print(f"Using orphaned preprocessed video: {processed.name}")
+        
+        print(f"Smart video selection: {len(selected_videos)} videos selected from {len(all_videos)} total videos")
+        return selected_videos
 
 def main():
     root = tk.Tk()

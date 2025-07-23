@@ -87,9 +87,9 @@ class SuturingAssessor:
     
 
 
-    def assess_vop(self, video_path: str, final_image_path: str, ref_image_path: str | None, suture_type: str, progress_callback=None) -> dict:
-        """Assess video using VoP (Verification of Proficiency) criteria with real-time progress updates."""
-        
+    def assess_vop(self, video_path: str, final_image_path: str, ref_image_path: str | None, suture_type: str, progress_callback=None, consensus=False, num_runs=1) -> dict:
+        """Assess video using VoP (Verification of Proficiency) criteria with real-time progress updates. Supports consensus mode."""
+        import copy
         # Define rubric points based on suture type
         rubric_points = {
             "simple_interrupted": [
@@ -179,6 +179,13 @@ NOTE for subcuticular spacing: Assess spacing based on surface clues. Examine fo
                     prompt_addition = f"\n{defn}"
                 else:
                     prompt_addition = ""
+
+            # Add instruction to avoid repeating rubric/ideal result and require observation
+            observation_instruction = "Do not simply repeat the rubric or ideal result. Your comment must describe what is actually observed in the submitted video or image."
+            if prompt_addition:
+                prompt_addition += f"\n{observation_instruction}"
+            else:
+                prompt_addition = f"\n{observation_instruction}"
 
             if mode == "VIDEO":
                 # Assess video-based criteria
